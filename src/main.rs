@@ -11,6 +11,7 @@ mod icons;
 mod image_cache;
 mod input;
 mod launcher;
+mod ludusavi;
 mod messages;
 mod model;
 mod mupen64plus;
