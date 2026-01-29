@@ -32,6 +32,7 @@ pub fn render_section_row<'a>(
     empty_msg: String,
     default_icon_handle: Option<iced::widget::svg::Handle>,
     scale: f32,
+    badge_status: Option<bool>,
 ) -> Element<'a, Message> {
     let is_active = active_category == target_category;
     let selected_index = if is_active { list.selected_index } else { 0 };
@@ -70,18 +71,22 @@ pub fn render_section_row<'a>(
 
         for (i, item) in list.items.iter().enumerate() {
             let is_selected = is_active && (i == selected_index);
+            let show_badge =
+                is_selected && target_category == Category::Games && badge_status == Some(true);
 
             let dims = ItemDimensions {
                 image_width,
                 image_height,
                 item_width,
             };
+
             row = row.push(render_item(
                 item,
                 is_selected,
                 &dims,
                 default_icon_handle.clone(),
                 scale,
+                show_badge,
             ));
         }
 
@@ -151,6 +156,7 @@ fn render_item<'a>(
     dims: &ItemDimensions,
     default_icon_handle: Option<iced::widget::svg::Handle>,
     scale: f32,
+    show_badge: bool,
 ) -> Element<'a, Message> {
     let image_width = dims.image_width;
     let image_height = dims.image_height;
@@ -198,7 +204,13 @@ fn render_item<'a>(
 
         let icon_container = Container::new(icon_widget).padding(6.0 * scale);
 
-        let label = Text::new(item_name.clone())
+        let label_text = if show_badge {
+            format!("{} ✓", item_name)
+        } else {
+            item_name.clone()
+        };
+
+        let label = Text::new(label_text)
             .font(SANSATION)
             .width(Length::Fixed(item_width))
             .wrapping(text::Wrapping::Word)

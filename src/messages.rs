@@ -76,5 +76,9 @@ pub enum Message {
         game_name: Option<String>,
         result: Result<LudusaviResult, LudusaviError>,
     },
+    BackupStatusReceived {
+        game_name: String,
+        status: Option<bool>,
+    },
     None,
 }

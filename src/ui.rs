@@ -107,6 +107,8 @@ pub struct Launcher {
     ludusavi_available: bool,
     ludusavi_operation_in_progress: bool,
     launched_game_name: Option<String>,
+    focused_game_backup_status: Option<bool>,
+    last_queried_game: Option<String>,
 }
 
 impl Launcher {
@@ -178,6 +180,8 @@ impl Launcher {
             ludusavi_available: false,
             ludusavi_operation_in_progress: false,
             launched_game_name: None,
+            focused_game_backup_status: None,
+            last_queried_game: None,
         };
 
         // Check Ludusavi availability at startup (blocking is acceptable here)
@@ -376,10 +380,64 @@ impl Launcher {
 
             Message::CloseLudusaviSettings => self.close_modal_none(),
 
-            Message::LudusaviOperationCompleted { .. } => {
-                // TODO: Task 7 - Handle operation completion
+            Message::LudusaviOperationCompleted {
+                operation,
+                game_name,
+                result,
+            } => {
+                self.ludusavi_operation_in_progress = false;
+
+                match result {
+                    Ok(_res) => {
+                        let toast_msg = match operation.as_str() {
+                            "backup" => {
+                                if let Some(name) = game_name {
+                                    format!("Backed up {}", name)
+                                } else {
+                                    "Backup completed".to_string()
+                                }
+                            }
+                            "backup-with-cloud-sync" => {
+                                if let Some(name) = game_name {
+                                    format!("Backed up and synced {}", name)
+                                } else {
+                                    "Backup and sync completed".to_string()
+                                }
+                            }
+                            "restore" => {
+                                if let Some(name) = game_name {
+                                    format!("Restored {}", name)
+                                } else {
+                                    "Restore completed".to_string()
+                                }
+                            }
+                            _ => return Task::none(),
+                        };
+                        self.toast.show(&toast_msg, ToastSeverity::Success);
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Ludusavi operation failed: {}", e);
+                        self.toast.show(&error_msg, ToastSeverity::Error);
+                    }
+                }
                 Task::none()
             }
+
+            Message::BackupStatusReceived { game_name, status } => {
+                if self.last_queried_game.as_ref() == Some(&game_name) {
+                    match status {
+                        Some(has_backups) => {
+                            self.focused_game_backup_status = Some(has_backups);
+                        }
+                        None => {
+                            self.last_queried_game = None;
+                            self.focused_game_backup_status = None;
+                        }
+                    }
+                }
+                Task::none()
+            }
+
             Message::None => Task::none(),
         }
     }
@@ -1430,6 +1488,39 @@ impl Launcher {
         self.handle_directional_navigation(action)
     }
 
+    fn query_backup_status_if_needed(&mut self) -> Task<Message> {
+        if self.category != Category::Games || !self.ludusavi_available {
+            return Task::none();
+        }
+
+        let Some(selected) = self.games.get_selected() else {
+            return Task::none();
+        };
+        let game_name = selected.name.clone();
+
+        if self.last_queried_game.as_ref() == Some(&game_name) {
+            return Task::none();
+        }
+
+        self.focused_game_backup_status = None;
+        self.last_queried_game = Some(game_name.clone());
+
+        let game_name_for_async = game_name.clone();
+        Task::perform(
+            async move {
+                crate::ludusavi::execute_operation(
+                    &game_name_for_async,
+                    crate::ludusavi::LudusaviOperation::QueryBackups,
+                )
+                .await
+            },
+            move |result| Message::BackupStatusReceived {
+                game_name,
+                status: result.ok().map(|r| r.has_backups),
+            },
+        )
+    }
+
     /// Handles Up/Down/Left/Right and category cycling navigation.
     fn handle_directional_navigation(&mut self, action: Action) -> Task<Message> {
         match action {
@@ -1437,32 +1528,44 @@ impl Launcher {
                 let prev_cat = self.category.prev();
                 if prev_cat != self.category {
                     self.category = prev_cat;
-                    return self.snap_to_main_selection();
+                    let scroll = self.snap_to_main_selection();
+                    let query = self.query_backup_status_if_needed();
+                    return Task::batch(vec![scroll, query]);
                 }
             }
             Action::Down => {
                 let next_cat = self.category.next();
                 if next_cat != self.category {
                     self.category = next_cat;
-                    return self.snap_to_main_selection();
+                    let scroll = self.snap_to_main_selection();
+                    let query = self.query_backup_status_if_needed();
+                    return Task::batch(vec![scroll, query]);
                 }
             }
             Action::Left if self.current_category_list_mut().move_left() => {
-                return self.snap_to_main_selection();
+                let scroll = self.snap_to_main_selection();
+                let query = self.query_backup_status_if_needed();
+                return Task::batch(vec![scroll, query]);
             }
             Action::Right if self.current_category_list_mut().move_right() => {
-                return self.snap_to_main_selection();
+                let scroll = self.snap_to_main_selection();
+                let query = self.query_backup_status_if_needed();
+                return Task::batch(vec![scroll, query]);
             }
             Action::Select if !self.current_category_list().is_empty() => {
                 return self.activate_selected();
             }
             Action::NextCategory => {
                 self.cycle_category();
-                return self.snap_to_main_selection();
+                let scroll = self.snap_to_main_selection();
+                let query = self.query_backup_status_if_needed();
+                return Task::batch(vec![scroll, query]);
             }
             Action::PrevCategory => {
                 self.cycle_category_back();
-                return self.snap_to_main_selection();
+                let scroll = self.snap_to_main_selection();
+                let query = self.query_backup_status_if_needed();
+                return Task::batch(vec![scroll, query]);
             }
             _ => {}
         }
@@ -1988,6 +2091,7 @@ impl Launcher {
             apps_msg,
             self.default_icon_handle.clone(),
             self.ui_scale,
+            None,
         );
 
         let games_msg = if !self.games_loaded {
@@ -2003,15 +2107,17 @@ impl Launcher {
             games_msg,
             self.default_icon_handle.clone(),
             self.ui_scale,
+            self.focused_game_backup_status,
         );
 
         let system_row = render_section_row(
             self.category,
             Category::System,
             &self.system_items,
-            "No system actions available.".to_string(),
+            "No system actions available".to_string(),
             self.default_icon_handle.clone(),
             self.ui_scale,
+            None,
         );
 
         Column::new()
