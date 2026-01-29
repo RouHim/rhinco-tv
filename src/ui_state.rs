@@ -29,6 +29,9 @@ pub enum ModalState {
         selected_index: usize,
     },
     Help,
+    LudusaviSettings {
+        selected_index: usize,
+    },
 }
 
 pub struct AppUpdateState {

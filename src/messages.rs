@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::desktop_apps::DesktopApp;
 use crate::gamepad::GamepadInfo;
 use crate::input::Action;
+use crate::ludusavi::{LudusaviError, LudusaviResult};
 use crate::model::AppEntry;
 use crate::storage::AppConfig;
 use crate::sudo_askpass::AskpassEvent;
@@ -66,7 +67,14 @@ pub enum Message {
     DismissToast,
     ToastTick,
     // Ludusavi settings messages
+    OpenLudusaviSettings,
+    CloseLudusaviSettings,
     ToggleAutoBackup,
     ToggleAutoCloudSync,
+    LudusaviOperationCompleted {
+        operation: String,
+        game_name: Option<String>,
+        result: Result<LudusaviResult, LudusaviError>,
+    },
     None,
 }

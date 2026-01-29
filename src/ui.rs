@@ -53,6 +53,7 @@ use crate::toast::{Toast, ToastSeverity};
 use crate::ui_app_picker::{render_app_picker, AppPickerState};
 use crate::ui_background::WhaleSharkBackground;
 use crate::ui_components::{get_battery_visuals, render_clock, render_gamepad_infos};
+use crate::ui_ludusavi_settings_modal;
 use crate::ui_main_view::{
     get_category_dimensions, render_controls_hint, render_section_row, render_status,
 };
@@ -103,6 +104,9 @@ pub struct Launcher {
     overlay_alpha: iced_anim::Animated<f32>,
     toast: Toast,
     config: AppConfig,
+    ludusavi_available: bool,
+    ludusavi_operation_in_progress: bool,
+    launched_game_name: Option<String>,
 }
 
 impl Launcher {
@@ -171,7 +175,14 @@ impl Launcher {
             overlay_alpha: iced_anim::Animated::spring(0.0, iced_anim::spring::Motion::SNAPPY),
             toast: Toast::new(),
             config: AppConfig::default(),
+            ludusavi_available: false,
+            ludusavi_operation_in_progress: false,
+            launched_game_name: None,
         };
+
+        // Check Ludusavi availability at startup (blocking is acceptable here)
+        let mut launcher = launcher;
+        launcher.ludusavi_available = crate::ludusavi::ludusavi_available();
 
         // Chain startup: Load config first to potentially get API key, then scan games
         // Also perform initial battery check
@@ -327,8 +338,10 @@ impl Launcher {
                         self.toast.show(msg, ToastSeverity::Success);
                     }
                     Err(e) => {
-                        self.toast
-                            .show(&format!("Failed to save settings: {}", e), ToastSeverity::Error);
+                        self.toast.show(
+                            &format!("Failed to save settings: {}", e),
+                            ToastSeverity::Error,
+                        );
                     }
                 }
                 Task::none()
@@ -346,13 +359,27 @@ impl Launcher {
                         self.toast.show(msg, ToastSeverity::Success);
                     }
                     Err(e) => {
-                        self.toast
-                            .show(&format!("Failed to save settings: {}", e), ToastSeverity::Error);
+                        self.toast.show(
+                            &format!("Failed to save settings: {}", e),
+                            ToastSeverity::Error,
+                        );
                     }
                 }
                 Task::none()
             }
 
+            Message::OpenLudusaviSettings => {
+                self.modal = ModalState::LudusaviSettings { selected_index: 0 };
+                self.sync_overlay_alpha();
+                Task::none()
+            }
+
+            Message::CloseLudusaviSettings => self.close_modal_none(),
+
+            Message::LudusaviOperationCompleted { .. } => {
+                // TODO: Task 7 - Handle operation completion
+                Task::none()
+            }
             Message::None => Task::none(),
         }
     }
@@ -812,6 +839,43 @@ impl Launcher {
     fn handle_game_exited(&mut self) -> Task<Message> {
         self.game_running = false;
         self.try_show_pending_update();
+
+        // Auto-backup logic: trigger backup if enabled and game was from Games category
+        let backup_command = if let Some(game_name) = self.launched_game_name.take() {
+            if self.ludusavi_available
+                && self.config.auto_backup
+                && !self.ludusavi_operation_in_progress
+            {
+                self.ludusavi_operation_in_progress = true;
+                let operation = if self.config.auto_cloud_sync {
+                    crate::ludusavi::LudusaviOperation::BackupWithCloudSync
+                } else {
+                    crate::ludusavi::LudusaviOperation::Backup
+                };
+                let game_name_clone = game_name.clone();
+                let operation_name = match operation {
+                    crate::ludusavi::LudusaviOperation::BackupWithCloudSync => {
+                        "backup-with-cloud-sync".to_string()
+                    }
+                    _ => "backup".to_string(),
+                };
+                let game_name_for_msg = game_name_clone.clone();
+                let operation_name_for_msg = operation_name.clone();
+                Task::perform(
+                    async move { crate::ludusavi::execute_operation(&game_name_clone, operation).await },
+                    move |result| Message::LudusaviOperationCompleted {
+                        operation: operation_name_for_msg,
+                        game_name: Some(game_name_for_msg),
+                        result,
+                    },
+                )
+            } else {
+                Task::none()
+            }
+        } else {
+            Task::none()
+        };
+
         if let Some(old_id) = self.window_id {
             let settings = window::Settings {
                 decorations: false,
@@ -823,14 +887,15 @@ impl Launcher {
             self.window_id = Some(new_id);
             self.recreating_window = true;
 
-            // Open the new window. We use the recreating_window flag to ensure
-            // the subsequent WindowOpened event doesn't trigger another update check.
-            Task::batch(vec![
+            // Combine backup command with window recreation
+            let window_command = Task::batch(vec![
                 open_task.map(|_| Message::None),
                 window::close(old_id),
-            ])
+            ]);
+
+            Task::batch(vec![backup_command, window_command])
         } else {
-            Task::none()
+            backup_command
         }
     }
 
@@ -1172,9 +1237,12 @@ impl Launcher {
     fn render_modal_layer(&self) -> Option<Element<'_, Message>> {
         let scale = self.ui_scale;
         match &self.modal {
-            ModalState::ContextMenu { index } => {
-                Some(render_context_menu(*index, self.category, scale))
-            }
+            ModalState::ContextMenu { index } => Some(render_context_menu(
+                *index,
+                self.category,
+                self.ludusavi_available,
+                scale,
+            )),
             ModalState::AppPicker(state) => {
                 Some(render_app_picker(state, &self.available_apps, scale))
             }
@@ -1197,6 +1265,13 @@ impl Launcher {
                 scale,
             )),
             ModalState::Help => Some(render_help_modal(scale)),
+            ModalState::LudusaviSettings { selected_index } => {
+                Some(ui_ludusavi_settings_modal::render_ludusavi_settings_modal(
+                    *selected_index,
+                    self.config.auto_backup,
+                    self.config.auto_cloud_sync,
+                ))
+            }
             ModalState::None => None,
         }
     }
@@ -1296,6 +1371,9 @@ impl Launcher {
     fn handle_modal_navigation(&mut self, action: Action) -> Option<Task<Message>> {
         match &self.modal {
             ModalState::Help => Some(self.handle_help_modal_navigation(action)),
+            ModalState::LudusaviSettings { .. } => {
+                Some(self.handle_ludusavi_settings_navigation(action))
+            }
             ModalState::ContextMenu { .. } => Some(self.handle_context_menu_navigation(action)),
             ModalState::AppPicker(_) => Some(self.handle_app_picker_navigation(action)),
             ModalState::SystemUpdate(_) => Some(self.handle_system_update_navigation(action)),
@@ -1457,13 +1535,12 @@ impl Launcher {
             _ => return Task::none(),
         };
 
-        // Context menu options vary by category:
-        // Apps: [Launch, Remove, Quit, Close] (indices 0-3)
-        // Games/System: [Launch, Quit, Close] (indices 0-2)
-        let max_index = if self.category == Category::Apps {
-            3
-        } else {
-            2
+        let max_index = match (self.category, self.ludusavi_available) {
+            (Category::Apps, _) => 3,      // 4 items: Launch, Remove Entry, Quit, Close
+            (Category::Games, true) => 4,  // 5 items: Launch, Backup, Restore, Quit, Close
+            (Category::Games, false) => 2, // 3 items: Launch, Quit, Close
+            (Category::System, true) => 3, // 4 items: Launch, Settings, Quit, Close
+            (Category::System, false) => 2, // 3 items: Launch, Quit, Close
         };
 
         match action {
@@ -1481,45 +1558,94 @@ impl Launcher {
 
     /// Executes the selected context menu action based on category and index.
     fn execute_context_menu_action(&mut self, index: usize) -> Task<Message> {
-        // Index 0 is always "Launch" for all categories
-        if index == 0 {
-            self.modal = ModalState::None;
-            self.sync_overlay_alpha();
-            return self.activate_selected();
-        }
-
-        // For Apps category: index 1 = Remove, index 2 = Quit, index 3 = Close
-        // For Games/System: index 1 = Quit, index 2 = Close
-        let (remove_index, quit_index, close_index) = if self.category == Category::Apps {
-            (Some(1), 2, 3)
-        } else {
-            (None, 1, 2)
-        };
-
-        if remove_index == Some(index) {
-            self.close_modal();
-            if let Some(removed) = self.apps.remove_selected() {
-                self.save_apps_config("Removed", "removing", &removed.name);
+        match (self.category, self.ludusavi_available, index) {
+            (Category::Apps, _, 0) => {
+                self.modal = ModalState::None;
+                self.sync_overlay_alpha();
+                self.activate_selected()
             }
-            return Task::none();
+            (Category::Apps, _, 1) => {
+                self.close_modal();
+                if let Some(removed) = self.apps.remove_selected() {
+                    self.save_apps_config("Removed", "removing", &removed.name);
+                }
+                Task::none()
+            }
+            (Category::Apps, _, 2) => self.exit_app(),
+            (Category::Apps, _, 3) => self.close_modal_none(),
+            (Category::Games, true, 0) => {
+                self.modal = ModalState::None;
+                self.sync_overlay_alpha();
+                self.activate_selected()
+            }
+            (Category::Games, true, 1) => self.close_modal_none(),
+            (Category::Games, true, 2) => self.close_modal_none(),
+            (Category::Games, true, 3) => self.exit_app(),
+            (Category::Games, true, 4) => self.close_modal_none(),
+            (Category::Games, false, 0) => {
+                self.modal = ModalState::None;
+                self.sync_overlay_alpha();
+                self.activate_selected()
+            }
+            (Category::Games, false, 1) => self.exit_app(),
+            (Category::Games, false, 2) => self.close_modal_none(),
+            (Category::System, true, 0) => {
+                self.modal = ModalState::None;
+                self.sync_overlay_alpha();
+                self.activate_selected()
+            }
+            (Category::System, true, 1) => self.close_modal_none(),
+            (Category::System, true, 2) => self.exit_app(),
+            (Category::System, true, 3) => self.close_modal_none(),
+            (Category::System, false, 0) => {
+                self.modal = ModalState::None;
+                self.sync_overlay_alpha();
+                self.activate_selected()
+            }
+            (Category::System, false, 1) => self.exit_app(),
+            (Category::System, false, 2) => self.close_modal_none(),
+            _ => Task::none(),
         }
-
-        if index == quit_index {
-            self.exit_app();
-        }
-
-        // close_index or any unhandled index -> close modal
-        if index == close_index {
-            return self.close_modal_none();
-        }
-
-        Task::none()
     }
 
     fn handle_help_modal_navigation(&mut self, action: Action) -> Task<Message> {
         match action {
             Action::Back | Action::ShowHelp => self.close_modal_none(),
-            _ => Task::none(), // Ignore other inputs while modal is open
+            _ => Task::none(),
+        }
+    }
+
+    fn handle_ludusavi_settings_navigation(&mut self, action: Action) -> Task<Message> {
+        let mut selected_index = match &self.modal {
+            ModalState::LudusaviSettings { selected_index } => *selected_index,
+            _ => return Task::none(),
+        };
+
+        let max_index = 2;
+
+        match action {
+            Action::Up | Action::Left => {
+                selected_index = if selected_index == 0 {
+                    max_index
+                } else {
+                    selected_index - 1
+                };
+                self.modal = ModalState::LudusaviSettings { selected_index };
+                Task::none()
+            }
+            Action::Down | Action::Right => {
+                selected_index = (selected_index + 1) % (max_index + 1);
+                self.modal = ModalState::LudusaviSettings { selected_index };
+                Task::none()
+            }
+            Action::Select => match selected_index {
+                0 => self.update(Message::ToggleAutoBackup),
+                1 => self.update(Message::ToggleAutoCloudSync),
+                2 => self.update(Message::CloseLudusaviSettings),
+                _ => Task::none(),
+            },
+            Action::Back => self.update(Message::CloseLudusaviSettings),
+            _ => Task::none(),
         }
     }
 
@@ -1787,6 +1913,11 @@ impl Launcher {
                 self.game_running = true;
                 self.record_launch_timestamp(item);
 
+                // Store game name ONLY for Games category (auto-backup on exit)
+                if self.category == Category::Games {
+                    self.launched_game_name = Some(item.name.clone());
+                }
+
                 // Optimization: Always check the main PID first.
                 // If the direct PID is running, we avoid the expensive full-system scan
                 // required for resolving monitor targets (names, env vars, etc.).
@@ -1807,6 +1938,7 @@ impl Launcher {
                 }
             }
             Err(LaunchError::CommandNotFound { .. }) => {
+                self.launched_game_name = None;
                 self.modal = ModalState::AppNotFound {
                     item_id: item.id,
                     item_name: item.name.clone(),
@@ -1817,6 +1949,7 @@ impl Launcher {
                 Task::none()
             }
             Err(err) => {
+                self.launched_game_name = None;
                 self.status_message = Some(err.to_string());
                 Task::none()
             }

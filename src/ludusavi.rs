@@ -34,7 +34,7 @@ pub struct LudusaviResult {
     pub error_message: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LudusaviError {
     NotInstalled,
     Timeout,
@@ -221,11 +221,7 @@ mod tests {
         assert!(!result.success);
         assert_eq!(result.games_processed, 0);
         assert!(result.error_message.is_some());
-        assert!(result
-            .error_message
-            .as_ref()
-            .unwrap()
-            .contains("not found"));
+        assert!(result.error_message.as_ref().unwrap().contains("not found"));
     }
 
     #[test]

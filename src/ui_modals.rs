@@ -10,11 +10,21 @@ use crate::ui_theme::*;
 pub fn render_context_menu<'a>(
     selected_index: usize,
     category: Category,
+    ludusavi_available: bool,
     scale: f32,
 ) -> Element<'a, Message> {
-    let menu_items: Vec<&str> = match category {
-        Category::Apps => vec!["Launch", "Remove Entry", "Quit Launcher", "Close"],
-        Category::Games | Category::System => vec!["Launch", "Quit Launcher", "Close"],
+    let menu_items: Vec<&str> = match (category, ludusavi_available) {
+        (Category::Apps, _) => vec!["Launch", "Remove Entry", "Quit Launcher", "Close"],
+        (Category::Games, true) => vec![
+            "Launch",
+            "Backup Saves",
+            "Restore Saves",
+            "Quit Launcher",
+            "Close",
+        ],
+        (Category::Games, false) => vec!["Launch", "Quit Launcher", "Close"],
+        (Category::System, true) => vec!["Launch", "Save Sync Settings", "Quit Launcher", "Close"],
+        (Category::System, false) => vec!["Launch", "Quit Launcher", "Close"],
     };
     let mut column = Column::new()
         .spacing(scaled(BASE_PADDING_SMALL, scale))
