@@ -14,6 +14,7 @@ const TOAST_DISPLAY_DURATION_SECS: i64 = 4;
 pub enum ToastSeverity {
     Success,
     Error,
+    #[allow(dead_code)]
     Info,
 }
 
@@ -77,7 +78,7 @@ impl Toast {
 
     pub fn view(&self, scale: f32) -> Element<'_, Message> {
         match &self.state {
-            ToastState::Hidden => Container::new(text(""))
+            ToastState::Hidden => iced::widget::Space::new()
                 .width(Length::Shrink)
                 .height(Length::Shrink)
                 .into(),

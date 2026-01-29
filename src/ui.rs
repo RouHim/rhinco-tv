@@ -373,8 +373,7 @@ impl Launcher {
             }
 
             Message::OpenLudusaviSettings => {
-                self.modal = ModalState::LudusaviSettings { selected_index: 0 };
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::LudusaviSettings { selected_index: 0 });
                 Task::none()
             }
 
@@ -389,30 +388,19 @@ impl Launcher {
 
                 match result {
                     Ok(_res) => {
-                        let toast_msg = match operation.as_str() {
-                            "backup" => {
-                                if let Some(name) = game_name {
-                                    format!("Backed up {}", name)
-                                } else {
-                                    "Backup completed".to_string()
-                                }
-                            }
+                        let (action, default_msg) = match operation.as_str() {
+                            "backup" => ("Backed up", "Backup completed"),
                             "backup-with-cloud-sync" => {
-                                if let Some(name) = game_name {
-                                    format!("Backed up and synced {}", name)
-                                } else {
-                                    "Backup and sync completed".to_string()
-                                }
+                                ("Backed up and synced", "Backup and sync completed")
                             }
-                            "restore" => {
-                                if let Some(name) = game_name {
-                                    format!("Restored {}", name)
-                                } else {
-                                    "Restore completed".to_string()
-                                }
-                            }
+                            "restore" => ("Restored", "Restore completed"),
                             _ => return Task::none(),
                         };
+
+                        let toast_msg = game_name
+                            .map(|name| format!("{} {}", action, name))
+                            .unwrap_or_else(|| default_msg.to_string());
+
                         self.toast.show(&toast_msg, ToastSeverity::Success);
                     }
                     Err(e) => {
@@ -624,8 +612,7 @@ impl Launcher {
     }
 
     fn open_app_picker(&mut self) -> Task<Message> {
-        self.modal = ModalState::AppPicker(AppPickerState::new());
-        self.sync_overlay_alpha();
+        self.set_modal(ModalState::AppPicker(AppPickerState::new()));
         self.available_apps.clear();
         // Scan for desktop apps asynchronously
         Task::perform(async { scan_desktop_apps() }, Message::AvailableAppsLoaded)
@@ -702,8 +689,7 @@ impl Launcher {
 
     fn start_system_update(&mut self) -> Task<Message> {
         self.osk_manager.show();
-        self.modal = ModalState::SystemUpdate(SystemUpdateState::new());
-        self.sync_overlay_alpha();
+        self.set_modal(ModalState::SystemUpdate(SystemUpdateState::new()));
         Task::none()
     }
 
@@ -749,8 +735,7 @@ impl Launcher {
     }
 
     fn open_system_info(&mut self) -> Task<Message> {
-        self.modal = ModalState::SystemInfo(Box::new(None));
-        self.sync_overlay_alpha();
+        self.set_modal(ModalState::SystemInfo(Box::new(None)));
         Task::perform(
             async { tokio::task::spawn_blocking(fetch_system_info).await.ok() },
             |info| {
@@ -848,25 +833,20 @@ impl Launcher {
         match previous_modal {
             ModalState::Auth(mut state) => {
                 if !Self::submit_auth_state(&mut state) {
-                    self.modal = ModalState::Auth(state);
-                    self.sync_overlay_alpha();
+                    self.set_modal(ModalState::Auth(state));
                     return Task::none();
                 }
-                self.modal = ModalState::None;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::None);
             }
             ModalState::SystemUpdateAuth { update, mut auth } => {
                 if !Self::submit_auth_state(&mut auth) {
-                    self.modal = ModalState::SystemUpdateAuth { update, auth };
-                    self.sync_overlay_alpha();
+                    self.set_modal(ModalState::SystemUpdateAuth { update, auth });
                     return Task::none();
                 }
-                self.modal = ModalState::SystemUpdate(update);
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::SystemUpdate(update));
             }
             other => {
-                self.modal = other;
-                self.sync_overlay_alpha();
+                self.set_modal(other);
             }
         }
 
@@ -878,17 +858,14 @@ impl Launcher {
         match previous_modal {
             ModalState::Auth(mut state) => {
                 state.flow.cancel();
-                self.modal = ModalState::None;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::None);
             }
             ModalState::SystemUpdateAuth { update, mut auth } => {
                 auth.flow.cancel();
-                self.modal = ModalState::SystemUpdate(update);
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::SystemUpdate(update));
             }
             other => {
-                self.modal = other;
-                self.sync_overlay_alpha();
+                self.set_modal(other);
             }
         }
         Task::none()
@@ -899,31 +876,25 @@ impl Launcher {
         self.try_show_pending_update();
 
         // Auto-backup logic: trigger backup if enabled and game was from Games category
+        let should_backup = self.ludusavi_available
+            && self.config.auto_backup
+            && !self.ludusavi_operation_in_progress;
+
         let backup_command = if let Some(game_name) = self.launched_game_name.take() {
-            if self.ludusavi_available
-                && self.config.auto_backup
-                && !self.ludusavi_operation_in_progress
-            {
+            if should_backup {
                 self.ludusavi_operation_in_progress = true;
                 let operation = if self.config.auto_cloud_sync {
                     crate::ludusavi::LudusaviOperation::BackupWithCloudSync
                 } else {
                     crate::ludusavi::LudusaviOperation::Backup
                 };
+                let operation_name = operation.operation_name().to_string();
                 let game_name_clone = game_name.clone();
-                let operation_name = match operation {
-                    crate::ludusavi::LudusaviOperation::BackupWithCloudSync => {
-                        "backup-with-cloud-sync".to_string()
-                    }
-                    _ => "backup".to_string(),
-                };
-                let game_name_for_msg = game_name_clone.clone();
-                let operation_name_for_msg = operation_name.clone();
                 Task::perform(
                     async move { crate::ludusavi::execute_operation(&game_name_clone, operation).await },
                     move |result| Message::LudusaviOperationCompleted {
-                        operation: operation_name_for_msg,
-                        game_name: Some(game_name_for_msg),
+                        operation: operation_name,
+                        game_name: Some(game_name),
                         result,
                     },
                 )
@@ -981,18 +952,23 @@ impl Launcher {
         }
         if matches!(self.modal, ModalState::None) {
             if let Some(release) = self.pending_update.take() {
-                self.modal = ModalState::AppUpdate(AppUpdateState::new(release));
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::AppUpdate(AppUpdateState::new(release)));
             }
         }
+    }
+
+    /// Set modal state and sync overlay alpha in one call.
+    /// Use this instead of manually setting `self.modal = ...` followed by `self.sync_overlay_alpha()`.
+    fn set_modal(&mut self, modal: ModalState) {
+        self.modal = modal;
+        self.sync_overlay_alpha();
     }
 
     /// Close the current modal and attempt to show any pending update.
     /// Use this helper instead of manually setting `self.modal = ModalState::None`
     /// followed by `self.try_show_pending_update()`.
     fn close_modal(&mut self) {
-        self.modal = ModalState::None;
-        self.sync_overlay_alpha();
+        self.set_modal(ModalState::None);
         self.try_show_pending_update();
     }
 
@@ -1070,8 +1046,7 @@ impl Launcher {
 
     fn close_app_update_modal(&mut self) -> Task<Message> {
         if matches!(self.modal, ModalState::AppUpdate(_)) {
-            self.modal = ModalState::None;
-            self.sync_overlay_alpha();
+            self.set_modal(ModalState::None);
         }
         Task::none()
     }
@@ -1465,16 +1440,14 @@ impl Launcher {
         // Handle global actions first
         match action {
             Action::ShowHelp => {
-                self.modal = ModalState::Help;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::Help);
                 return Task::none();
             }
             Action::AddApp if self.category == Category::Apps => {
                 return self.update(Message::OpenAppPicker);
             }
             Action::ContextMenu if !self.current_category_list().is_empty() => {
-                self.modal = ModalState::ContextMenu { index: 0 };
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::ContextMenu { index: 0 });
                 return Task::none();
             }
             Action::Back => {
@@ -1654,8 +1627,7 @@ impl Launcher {
             _ => {}
         }
 
-        self.modal = ModalState::ContextMenu { index };
-        self.sync_overlay_alpha();
+        self.set_modal(ModalState::ContextMenu { index });
         Task::none()
     }
 
@@ -1663,8 +1635,7 @@ impl Launcher {
     fn execute_context_menu_action(&mut self, index: usize) -> Task<Message> {
         match (self.category, self.ludusavi_available, index) {
             (Category::Apps, _, 0) => {
-                self.modal = ModalState::None;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::None);
                 self.activate_selected()
             }
             (Category::Apps, _, 1) => {
@@ -1677,8 +1648,7 @@ impl Launcher {
             (Category::Apps, _, 2) => self.exit_app(),
             (Category::Apps, _, 3) => self.close_modal_none(),
             (Category::Games, true, 0) => {
-                self.modal = ModalState::None;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::None);
                 self.activate_selected()
             }
             (Category::Games, true, 1) => self.close_modal_none(),
@@ -1686,23 +1656,20 @@ impl Launcher {
             (Category::Games, true, 3) => self.exit_app(),
             (Category::Games, true, 4) => self.close_modal_none(),
             (Category::Games, false, 0) => {
-                self.modal = ModalState::None;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::None);
                 self.activate_selected()
             }
             (Category::Games, false, 1) => self.exit_app(),
             (Category::Games, false, 2) => self.close_modal_none(),
             (Category::System, true, 0) => {
-                self.modal = ModalState::None;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::None);
                 self.activate_selected()
             }
             (Category::System, true, 1) => self.close_modal_none(),
             (Category::System, true, 2) => self.exit_app(),
             (Category::System, true, 3) => self.close_modal_none(),
             (Category::System, false, 0) => {
-                self.modal = ModalState::None;
-                self.sync_overlay_alpha();
+                self.set_modal(ModalState::None);
                 self.activate_selected()
             }
             (Category::System, false, 1) => self.exit_app(),
@@ -1733,12 +1700,12 @@ impl Launcher {
                 } else {
                     selected_index - 1
                 };
-                self.modal = ModalState::LudusaviSettings { selected_index };
+                self.set_modal(ModalState::LudusaviSettings { selected_index });
                 Task::none()
             }
             Action::Down | Action::Right => {
                 selected_index = (selected_index + 1) % (max_index + 1);
-                self.modal = ModalState::LudusaviSettings { selected_index };
+                self.set_modal(ModalState::LudusaviSettings { selected_index });
                 Task::none()
             }
             Action::Select => match selected_index {
@@ -1780,13 +1747,12 @@ impl Launcher {
             _ => {}
         }
 
-        self.modal = ModalState::AppNotFound {
+        self.set_modal(ModalState::AppNotFound {
             item_id,
             item_name,
             category,
             selected_index,
-        };
-        self.sync_overlay_alpha();
+        });
         Task::none()
     }
 
@@ -2042,13 +2008,12 @@ impl Launcher {
             }
             Err(LaunchError::CommandNotFound { .. }) => {
                 self.launched_game_name = None;
-                self.modal = ModalState::AppNotFound {
+                self.set_modal(ModalState::AppNotFound {
                     item_id: item.id,
                     item_name: item.name.clone(),
                     category: self.category,
                     selected_index: 0,
-                };
-                self.sync_overlay_alpha();
+                });
                 Task::none()
             }
             Err(err) => {

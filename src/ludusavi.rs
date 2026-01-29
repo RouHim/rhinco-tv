@@ -9,6 +9,7 @@ const LUDUSAVI_TIMEOUT: Duration = Duration::from_secs(60);
 pub enum LudusaviOperation {
     Backup,
     BackupWithCloudSync,
+    #[allow(dead_code)]
     Restore,
     QueryBackups,
 }
@@ -24,18 +25,31 @@ impl LudusaviOperation {
             LudusaviOperation::QueryBackups => vec!["backups", "--api"],
         }
     }
+
+    pub fn operation_name(&self) -> &'static str {
+        match self {
+            LudusaviOperation::Backup => "backup",
+            LudusaviOperation::BackupWithCloudSync => "backup-with-cloud-sync",
+            LudusaviOperation::Restore => "restore",
+            LudusaviOperation::QueryBackups => "query-backups",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct LudusaviResult {
+    #[allow(dead_code)]
     pub success: bool,
+    #[allow(dead_code)]
     pub games_processed: usize,
     pub has_backups: bool,
+    #[allow(dead_code)]
     pub error_message: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub enum LudusaviError {
+    #[allow(dead_code)]
     NotInstalled,
     Timeout,
     CommandFailed(String),
@@ -80,15 +94,10 @@ pub async fn execute_operation(
     cmd.stderr(Stdio::piped());
     cmd.stdin(Stdio::null());
 
-    let output = match timeout(LUDUSAVI_TIMEOUT, cmd.output()).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            return Err(LudusaviError::CommandFailed(e.to_string()));
-        }
-        Err(_) => {
-            return Err(LudusaviError::Timeout);
-        }
-    };
+    let output = timeout(LUDUSAVI_TIMEOUT, cmd.output())
+        .await
+        .map_err(|_| LudusaviError::Timeout)?
+        .map_err(|e| LudusaviError::CommandFailed(e.to_string()))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -115,11 +124,21 @@ fn parse_json_response(
     let v: serde_json::Value =
         serde_json::from_str(json).map_err(|e| LudusaviError::ParseError(e.to_string()))?;
 
-    let some_games_failed = v
-        .get("errors")
-        .and_then(|e| e.get("someGamesFailed"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    fn get_bool_at(v: &serde_json::Value, path: &[&str]) -> bool {
+        path.iter()
+            .try_fold(v, |acc, &key| acc.get(key))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    }
+
+    fn get_u64_at(v: &serde_json::Value, path: &[&str]) -> u64 {
+        path.iter()
+            .try_fold(v, |acc, &key| acc.get(key))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0)
+    }
+
+    let some_games_failed = get_bool_at(&v, &["errors", "someGamesFailed"]);
 
     let unknown_games = v
         .get("errors")
@@ -128,11 +147,7 @@ fn parse_json_response(
         .map(|a| !a.is_empty())
         .unwrap_or(false);
 
-    let games_processed = v
-        .get("overall")
-        .and_then(|o| o.get("processedGames"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let games_processed = get_u64_at(&v, &["overall", "processedGames"]) as usize;
 
     let has_backups = if operation == LudusaviOperation::QueryBackups {
         v.get("games")

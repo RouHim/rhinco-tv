@@ -60,13 +60,16 @@ pub enum Message {
     AuthCancel,
     OverlayAlphaUpdate(iced_anim::Event<f32>),
     // Toast messages
+    #[allow(dead_code)]
     ShowToast {
         message: String,
         severity: ToastSeverity,
     },
+    #[allow(dead_code)]
     DismissToast,
     ToastTick,
     // Ludusavi settings messages
+    #[allow(dead_code)]
     OpenLudusaviSettings,
     CloseLudusaviSettings,
     ToggleAutoBackup,
