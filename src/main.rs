@@ -26,6 +26,7 @@ mod system_battery;
 mod system_info;
 mod system_update;
 mod system_update_state;
+mod toast;
 mod ui;
 mod ui_app_picker;
 mod ui_app_update_modal;

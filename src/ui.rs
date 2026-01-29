@@ -49,6 +49,7 @@ use crate::system_battery::read_system_battery;
 use crate::system_info::{fetch_system_info, GamingSystemInfo};
 use crate::system_update::{is_update_supported, system_update_stream};
 use crate::system_update_state::{SystemUpdateProgress, SystemUpdateState, UpdateStatus};
+use crate::toast::Toast;
 use crate::ui_app_picker::{render_app_picker, AppPickerState};
 use crate::ui_background::WhaleSharkBackground;
 use crate::ui_components::{get_battery_visuals, render_clock, render_gamepad_infos};
@@ -98,10 +99,9 @@ pub struct Launcher {
     system_battery: Option<gilrs::PowerInfo>,
     last_battery_check: std::time::Instant,
     pending_update: Option<ReleaseInfo>,
-    /// Main vertical scrollable Id for programmatic scroll control
     main_scroll_id: iced::widget::Id,
-    /// Animated overlay alpha for modal fade-in (0.0 = invisible, 0.7/0.85 = visible)
     overlay_alpha: iced_anim::Animated<f32>,
+    toast: Toast,
 }
 
 impl Launcher {
@@ -168,6 +168,7 @@ impl Launcher {
             pending_update: None,
             main_scroll_id: iced::widget::Id::unique(),
             overlay_alpha: iced_anim::Animated::spring(0.0, iced_anim::spring::Motion::SNAPPY),
+            toast: Toast::new(),
         };
 
         // Chain startup: Load config first to potentially get API key, then scan games
@@ -294,6 +295,21 @@ impl Launcher {
 
             Message::OverlayAlphaUpdate(event) => {
                 self.overlay_alpha.update(event);
+                Task::none()
+            }
+
+            Message::ShowToast { message, severity } => {
+                self.toast.show(&message, severity);
+                Task::none()
+            }
+            Message::DismissToast => {
+                self.toast.dismiss();
+                Task::none()
+            }
+            Message::ToastTick => {
+                if self.toast.should_dismiss() {
+                    self.toast.dismiss();
+                }
                 Task::none()
             }
 
@@ -1104,6 +1120,10 @@ impl Launcher {
             stack = stack.push(modal_content);
         }
 
+        if self.toast.is_showing() {
+            stack = stack.push(self.toast.view(self.ui_scale));
+        }
+
         stack.into()
     }
 
@@ -1193,6 +1213,11 @@ impl Launcher {
                         .map(|_| Message::AppUpdateSpinnerTick),
                 );
             }
+        }
+
+        if self.toast.is_showing() {
+            subscriptions
+                .push(iced::time::every(Duration::from_millis(100)).map(|_| Message::ToastTick));
         }
 
         Subscription::batch(subscriptions)

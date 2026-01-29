@@ -11,6 +11,7 @@ use crate::storage::AppConfig;
 use crate::sudo_askpass::AskpassEvent;
 use crate::system_info::GamingSystemInfo;
 use crate::system_update_state::SystemUpdateProgress;
+use crate::toast::ToastSeverity;
 use crate::updater::ReleaseInfo;
 use crate::virtual_keyboard::KeyboardMessage;
 
@@ -57,5 +58,12 @@ pub enum Message {
     AuthSubmit,
     AuthCancel,
     OverlayAlphaUpdate(iced_anim::Event<f32>),
+    // Toast messages
+    ShowToast {
+        message: String,
+        severity: ToastSeverity,
+    },
+    DismissToast,
+    ToastTick,
     None,
 }
