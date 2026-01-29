@@ -65,5 +65,8 @@ pub enum Message {
     },
     DismissToast,
     ToastTick,
+    // Ludusavi settings messages
+    ToggleAutoBackup,
+    ToggleAutoCloudSync,
     None,
 }

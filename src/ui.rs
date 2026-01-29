@@ -49,7 +49,7 @@ use crate::system_battery::read_system_battery;
 use crate::system_info::{fetch_system_info, GamingSystemInfo};
 use crate::system_update::{is_update_supported, system_update_stream};
 use crate::system_update_state::{SystemUpdateProgress, SystemUpdateState, UpdateStatus};
-use crate::toast::Toast;
+use crate::toast::{Toast, ToastSeverity};
 use crate::ui_app_picker::{render_app_picker, AppPickerState};
 use crate::ui_background::WhaleSharkBackground;
 use crate::ui_components::{get_battery_visuals, render_clock, render_gamepad_infos};
@@ -102,6 +102,7 @@ pub struct Launcher {
     main_scroll_id: iced::widget::Id,
     overlay_alpha: iced_anim::Animated<f32>,
     toast: Toast,
+    config: AppConfig,
 }
 
 impl Launcher {
@@ -169,6 +170,7 @@ impl Launcher {
             main_scroll_id: iced::widget::Id::unique(),
             overlay_alpha: iced_anim::Animated::spring(0.0, iced_anim::spring::Motion::SNAPPY),
             toast: Toast::new(),
+            config: AppConfig::default(),
         };
 
         // Chain startup: Load config first to potentially get API key, then scan games
@@ -313,6 +315,44 @@ impl Launcher {
                 Task::none()
             }
 
+            Message::ToggleAutoBackup => {
+                self.config.auto_backup = !self.config.auto_backup;
+                match save_config(&self.config) {
+                    Ok(_) => {
+                        let msg = if self.config.auto_backup {
+                            "Auto-backup enabled"
+                        } else {
+                            "Auto-backup disabled"
+                        };
+                        self.toast.show(msg, ToastSeverity::Success);
+                    }
+                    Err(e) => {
+                        self.toast
+                            .show(&format!("Failed to save settings: {}", e), ToastSeverity::Error);
+                    }
+                }
+                Task::none()
+            }
+
+            Message::ToggleAutoCloudSync => {
+                self.config.auto_cloud_sync = !self.config.auto_cloud_sync;
+                match save_config(&self.config) {
+                    Ok(_) => {
+                        let msg = if self.config.auto_cloud_sync {
+                            "Auto cloud sync enabled"
+                        } else {
+                            "Auto cloud sync disabled"
+                        };
+                        self.toast.show(msg, ToastSeverity::Success);
+                    }
+                    Err(e) => {
+                        self.toast
+                            .show(&format!("Failed to save settings: {}", e), ToastSeverity::Error);
+                    }
+                }
+                Task::none()
+            }
+
             Message::None => Task::none(),
         }
     }
@@ -359,6 +399,8 @@ impl Launcher {
     }
 
     fn process_loaded_apps(&mut self, config: AppConfig) {
+        self.config = config.clone();
+
         let items: Vec<LauncherItem> = config
             .apps
             .into_iter()
@@ -377,11 +419,11 @@ impl Launcher {
         self.status_message = None;
 
         // Store game launch history for later use when games are loaded
-        self.game_launch_history = config.game_launch_history;
+        self.game_launch_history = self.config.game_launch_history.clone();
 
         // If no env key was found, try using the one from config
         if self.api_key.is_none() {
-            if let Some(key) = config.steamgriddb_api_key {
+            if let Some(key) = self.config.steamgriddb_api_key.clone() {
                 self.api_key = Some(key.clone());
                 self.sgdb_client = SteamGridDbClient::new(key);
             }

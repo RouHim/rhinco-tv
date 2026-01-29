@@ -14,6 +14,10 @@ pub struct AppConfig {
     /// Games are scanned fresh each startup, so we persist their launch history separately
     #[serde(default)]
     pub game_launch_history: HashMap<String, i64>,
+    #[serde(default)]
+    pub auto_backup: bool,
+    #[serde(default)]
+    pub auto_cloud_sync: bool,
 }
 
 /// Returns the project directories for this application.
@@ -68,6 +72,8 @@ mod tests {
             ],
             steamgriddb_api_key: Some("test-key".into()),
             game_launch_history: game_history,
+            auto_backup: false,
+            auto_cloud_sync: false,
         };
 
         let json = serde_json::to_string(&config).unwrap();
@@ -76,5 +82,45 @@ mod tests {
         assert_eq!(config.apps, loaded.apps);
         assert_eq!(config.steamgriddb_api_key, loaded.steamgriddb_api_key);
         assert_eq!(config.game_launch_history, loaded.game_launch_history);
+        assert_eq!(config.auto_backup, loaded.auto_backup);
+        assert_eq!(config.auto_cloud_sync, loaded.auto_cloud_sync);
+    }
+
+    #[test]
+    fn test_default_config_has_auto_backup_false() {
+        let config = AppConfig::default();
+        assert!(!config.auto_backup);
+    }
+
+    #[test]
+    fn test_default_config_has_auto_cloud_sync_false() {
+        let config = AppConfig::default();
+        assert!(!config.auto_cloud_sync);
+    }
+
+    #[test]
+    fn test_json_missing_fields_deserializes_with_defaults() {
+        let json = r#"{"apps":[],"steamgriddb_api_key":null}"#;
+        let config: AppConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.auto_backup);
+        assert!(!config.auto_cloud_sync);
+        assert!(config.game_launch_history.is_empty());
+    }
+
+    #[test]
+    fn test_serialization_round_trip_preserves_values() {
+        let config = AppConfig {
+            apps: vec![],
+            steamgriddb_api_key: None,
+            game_launch_history: HashMap::new(),
+            auto_backup: true,
+            auto_cloud_sync: true,
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let loaded: AppConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(loaded.auto_backup, true);
+        assert_eq!(loaded.auto_cloud_sync, true);
     }
 }
