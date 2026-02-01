@@ -1,3 +1,14 @@
+# [2.7.0](https://github.com/RouHim/rhinco-tv/compare/v2.6.0...v2.7.0) (2026-02-01)
+
+
+### Features
+
+* **ludusavi:** add CLI wrapper module ([375c8da](https://github.com/RouHim/rhinco-tv/commit/375c8da115ec7306342f805a8c6795e366a1c5ea))
+* **ludusavi:** complete Wave 3 - operation handling and backup badges ([bb793b4](https://github.com/RouHim/rhinco-tv/commit/bb793b42052e3fa6ff4a7e0f227df46eb93a568a))
+* **ludusavi:** implement Wave 2 - UI integration and auto-backup ([74b3b5b](https://github.com/RouHim/rhinco-tv/commit/74b3b5b0e00d49dab5d4be49f70abb5963661d80))
+* **storage:** add auto_backup and auto_cloud_sync settings ([19ffea3](https://github.com/RouHim/rhinco-tv/commit/19ffea343a71f76a8bbca2c88b5af0f20b882c6c))
+* **ui:** add toast notification system ([21435a6](https://github.com/RouHim/rhinco-tv/commit/21435a6d77baa33adee173e4884d4a19fbfc3af8))
+
 # [2.6.0](https://github.com/RouHim/rhinco-tv/compare/v2.5.0...v2.6.0) (2026-01-27)
 
 
