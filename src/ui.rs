@@ -134,6 +134,7 @@ impl Launcher {
         }
 
         system_items_vec.push(LauncherItem::system_info());
+        system_items_vec.push(LauncherItem::settings());
         system_items_vec.push(LauncherItem::exit());
 
         // Default 1080p assumption until resize event

@@ -124,6 +124,10 @@ impl LauncherItem {
         Self::new_system("System Info", SystemIcon::Info, LauncherAction::SystemInfo)
     }
 
+    pub fn settings() -> Self {
+        Self::new_system("Settings", SystemIcon::Gear, LauncherAction::Settings)
+    }
+
     pub fn shutdown() -> Self {
         Self::new_system("Shutdown", SystemIcon::PowerOff, LauncherAction::Shutdown)
     }
