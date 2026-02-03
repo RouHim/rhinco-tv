@@ -442,87 +442,96 @@ impl Launcher {
                 Task::none()
             }
 
-             Message::BackupStatusReceived { game_name, status } => {
-                 if self.last_queried_game.as_ref() == Some(&game_name) {
-                     match status {
-                         Some(has_backups) => {
-                             self.focused_game_backup_status = Some(has_backups);
-                         }
-                         None => {
-                             self.last_queried_game = None;
-                             self.focused_game_backup_status = None;
-                         }
-                     }
-                 }
-                 Task::none()
-             }
+            Message::BackupStatusReceived { game_name, status } => {
+                if self.last_queried_game.as_ref() == Some(&game_name) {
+                    match status {
+                        Some(has_backups) => {
+                            self.focused_game_backup_status = Some(has_backups);
+                        }
+                        None => {
+                            self.last_queried_game = None;
+                            self.focused_game_backup_status = None;
+                        }
+                    }
+                }
+                Task::none()
+            }
 
-             Message::OpenSettings => {
-                 let api_key = self.config.steamgriddb_api_key.clone().unwrap_or_default();
-                 self.set_modal(ModalState::Settings {
-                     selected_index: 0,
-                     editing_api_key: false,
-                     keyboard: None,
-                     api_key_buffer: api_key,
-                 });
-                 Task::none()
-             }
+            Message::OpenSettings => {
+                let api_key = self.config.steamgriddb_api_key.clone().unwrap_or_default();
+                self.set_modal(ModalState::Settings {
+                    selected_index: 0,
+                    editing_api_key: false,
+                    keyboard: None,
+                    api_key_buffer: api_key,
+                });
+                Task::none()
+            }
 
-             Message::CloseSettings => self.close_modal_none(),
+            Message::CloseSettings => self.close_modal_none(),
 
-             Message::UpdateSteamGridDbApiKey(key) => {
-                 self.config.steamgriddb_api_key = if key.is_empty() {
-                     None
-                 } else {
-                     Some(key.clone())
-                 };
-                 
-                 match save_config(&self.config) {
-                     Ok(_) => {
-                         self.sgdb_client = SteamGridDbClient::new(key);
-                         self.toast.show("API key updated", ToastSeverity::Success);
-                     }
-                     Err(e) => {
-                         self.toast.show(
-                             &format!("Failed to save API key: {}", e),
-                             ToastSeverity::Error,
-                         );
-                     }
-                 }
-                 Task::none()
-             }
+            Message::UpdateSteamGridDbApiKey(key) => {
+                self.config.steamgriddb_api_key = if key.is_empty() {
+                    None
+                } else {
+                    Some(key.clone())
+                };
 
-             Message::SettingsKeyboard(msg) => {
-                 if let ModalState::Settings { keyboard: Some(ref mut kb), .. } = &mut self.modal {
-                     let output = kb.handle_message(msg);
-                     
-                     match output {
-                         KeyboardOutput::Input(value) => {
-                             if let ModalState::Settings { ref mut api_key_buffer, .. } = &mut self.modal {
-                                 *api_key_buffer = value;
-                             }
-                         }
-                         KeyboardOutput::Submit => {
-                             if let ModalState::Settings { api_key_buffer, .. } = &self.modal {
-                                 let key = api_key_buffer.clone();
-                                 return self.update(Message::UpdateSteamGridDbApiKey(key))
-                                     .chain(self.update(Message::CloseSettings));
-                             }
-                         }
-                         KeyboardOutput::None => {}
-                     }
-                 }
-                 Task::none()
-             }
+                match save_config(&self.config) {
+                    Ok(_) => {
+                        self.sgdb_client = SteamGridDbClient::new(key);
+                        self.toast.show("API key updated", ToastSeverity::Success);
+                    }
+                    Err(e) => {
+                        self.toast.show(
+                            &format!("Failed to save API key: {}", e),
+                            ToastSeverity::Error,
+                        );
+                    }
+                }
+                Task::none()
+            }
 
-             Message::None => Task::none(),
-         }
-     }
+            Message::SettingsKeyboard(msg) => {
+                if let ModalState::Settings {
+                    keyboard: Some(ref mut kb),
+                    ..
+                } = &mut self.modal
+                {
+                    let output = kb.handle_message(msg);
 
-     // --- Message Handlers ---
+                    match output {
+                        KeyboardOutput::Input(value) => {
+                            if let ModalState::Settings {
+                                ref mut api_key_buffer,
+                                ..
+                            } = &mut self.modal
+                            {
+                                *api_key_buffer = value;
+                            }
+                        }
+                        KeyboardOutput::Submit => {
+                            if let ModalState::Settings { api_key_buffer, .. } = &self.modal {
+                                let key = api_key_buffer.clone();
+                                return self
+                                    .update(Message::UpdateSteamGridDbApiKey(key))
+                                    .chain(self.update(Message::CloseSettings));
+                            }
+                        }
+                        KeyboardOutput::None => {}
+                    }
+                }
+                Task::none()
+            }
 
-     /// Checks if enough time has passed since the last battery check and spawns a refresh task if needed.
-     fn maybe_refresh_battery(&mut self) -> Task<Message> {
+            Message::None => Task::none(),
+        }
+    }
+
+    // --- Message Handlers ---
+
+    /// Checks if enough time has passed since the last battery check and spawns a refresh task if needed.
+    fn maybe_refresh_battery(&mut self) -> Task<Message> {
         if self.last_battery_check.elapsed().as_secs() < BATTERY_CHECK_INTERVAL_SECS {
             return Task::none();
         }
@@ -1376,11 +1385,7 @@ impl Launcher {
             ModalState::SystemInfo {
                 info,
                 selected_index,
-            } => Some(render_system_info_modal(
-                info,
-                *selected_index,
-                scale,
-            )),
+            } => Some(render_system_info_modal(info, *selected_index, scale)),
             ModalState::SystemUpdateAuth { auth, .. } => {
                 Some(render_auth_dialog(&auth.flow, &auth.keyboard, scale))
             }
@@ -1844,7 +1849,12 @@ impl Launcher {
                 editing_api_key,
                 keyboard,
                 api_key_buffer,
-            } => (*selected_index, *editing_api_key, keyboard.clone(), api_key_buffer.clone()),
+            } => (
+                *selected_index,
+                *editing_api_key,
+                keyboard.clone(),
+                api_key_buffer.clone(),
+            ),
             _ => return Task::none(),
         };
 
@@ -1903,10 +1913,9 @@ impl Launcher {
                                 });
                                 Task::none()
                             }
-                            KeyboardOutput::Submit => {
-                                self.update(Message::UpdateSteamGridDbApiKey(api_key_buffer))
-                                    .chain(self.close_modal_none())
-                            }
+                            KeyboardOutput::Submit => self
+                                .update(Message::UpdateSteamGridDbApiKey(api_key_buffer))
+                                .chain(self.close_modal_none()),
                             KeyboardOutput::None => Task::none(),
                         }
                     }
@@ -1916,7 +1925,11 @@ impl Launcher {
                                 selected_index,
                                 editing_api_key: false,
                                 keyboard: None,
-                                api_key_buffer: self.config.steamgriddb_api_key.clone().unwrap_or_default(),
+                                api_key_buffer: self
+                                    .config
+                                    .steamgriddb_api_key
+                                    .clone()
+                                    .unwrap_or_default(),
                             });
                             Task::none()
                         } else {
