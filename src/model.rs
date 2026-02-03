@@ -8,6 +8,7 @@ pub enum SystemIcon {
     ArrowsRotate,
     ExitBracket,
     Info,
+    Gear,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -48,6 +49,7 @@ pub enum LauncherAction {
     Launch { exec: String },
     SystemUpdate,
     SystemInfo,
+    Settings,
     Shutdown,
     Suspend,
     Exit,

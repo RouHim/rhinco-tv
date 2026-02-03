@@ -184,6 +184,7 @@ fn render_item<'a>(
                 SystemIcon::ArrowsRotate => icons::arrows_rotate_icon(icon_size),
                 SystemIcon::ExitBracket => icons::exit_icon(icon_size),
                 SystemIcon::Info => icons::info_icon(icon_size),
+                SystemIcon::Gear => icons::info_icon(icon_size),
             };
             Container::new(icon)
                 .width(Length::Fixed(image_width))

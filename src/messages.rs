@@ -85,5 +85,10 @@ pub enum Message {
         game_name: String,
         status: Option<bool>,
     },
+    // Settings modal messages
+    OpenSettings,
+    CloseSettings,
+    UpdateSteamGridDbApiKey(String),
+    SettingsKeyboard(KeyboardMessage),
     None,
 }
