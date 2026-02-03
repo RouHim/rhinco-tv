@@ -35,6 +35,12 @@ pub enum ModalState {
     LudusaviSettings {
         selected_index: usize,
     },
+    Settings {
+        selected_index: usize,
+        editing_api_key: bool,
+        keyboard: Option<VirtualKeyboard>,
+        api_key_buffer: String,
+    },
 }
 
 pub struct AppUpdateState {
@@ -66,4 +72,34 @@ pub enum AppUpdatePhase {
     Updating,
     Completed,
     Failed,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_settings_state_initialization() {
+        let settings = ModalState::Settings {
+            selected_index: 0,
+            editing_api_key: false,
+            keyboard: None,
+            api_key_buffer: String::new(),
+        };
+
+        match settings {
+            ModalState::Settings {
+                selected_index,
+                editing_api_key,
+                keyboard,
+                api_key_buffer,
+            } => {
+                assert_eq!(selected_index, 0);
+                assert!(!editing_api_key);
+                assert!(keyboard.is_none());
+                assert_eq!(api_key_buffer, "");
+            }
+            _ => panic!("Expected ModalState::Settings variant"),
+        }
+    }
 }

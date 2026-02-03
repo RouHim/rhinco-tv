@@ -1323,6 +1323,7 @@ impl Launcher {
                     self.config.auto_cloud_sync,
                 ))
             }
+            ModalState::Settings { .. } => None,
             ModalState::None => None,
         }
     }
@@ -1425,6 +1426,7 @@ impl Launcher {
             ModalState::LudusaviSettings { .. } => {
                 Some(self.handle_ludusavi_settings_navigation(action))
             }
+            ModalState::Settings { .. } => None,
             ModalState::ContextMenu { .. } => Some(self.handle_context_menu_navigation(action)),
             ModalState::AppPicker(_) => Some(self.handle_app_picker_navigation(action)),
             ModalState::SystemUpdate(_) => Some(self.handle_system_update_navigation(action)),
