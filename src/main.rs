@@ -1,6 +1,7 @@
 mod assets;
 mod auth_dialog;
 mod auth_flow;
+mod autostart;
 mod category_list;
 mod desktop_apps;
 mod focus_manager;

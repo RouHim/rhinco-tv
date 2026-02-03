@@ -120,7 +120,7 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         let loaded: AppConfig = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(loaded.auto_backup, true);
-        assert_eq!(loaded.auto_cloud_sync, true);
+        assert!(loaded.auto_backup);
+        assert!(loaded.auto_cloud_sync);
     }
 }

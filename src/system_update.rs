@@ -502,8 +502,9 @@ mod tests {
         // We wrap it in a timeout to ensure the test fails fast if it hangs
         let monitor_future = monitor_child(child, &mut sender, &mut updated_packages);
 
-        if let Err(_) =
-            tokio::time::timeout(std::time::Duration::from_secs(2), monitor_future).await
+        if tokio::time::timeout(std::time::Duration::from_secs(2), monitor_future)
+            .await
+            .is_err()
         {
             panic!("monitor_child timed out - likely infinite loop bug");
         }
