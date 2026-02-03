@@ -27,7 +27,6 @@ use uuid::Uuid;
 use crate::assets::get_default_icon;
 use crate::auth_dialog::render_auth_dialog;
 use crate::auth_flow::{AuthFlow, AuthFlowState};
-use crate::autostart;
 use crate::category_list::CategoryList;
 use crate::desktop_apps::{scan_desktop_apps, DesktopApp};
 use crate::focus_manager::{monitor_app_process, MonitorTarget};
@@ -374,47 +373,8 @@ impl Launcher {
             }
 
             Message::ToggleAutostart => {
-                if let ModalState::SystemInfo {
-                    autostart_enabled, ..
-                } = &self.modal
-                {
-                    let new_state = !autostart_enabled;
-                    let result = if new_state {
-                        autostart::enable()
-                    } else {
-                        autostart::disable()
-                    };
-
-                    match result {
-                        Ok(_) => {
-                            let msg = if new_state {
-                                "Autostart enabled"
-                            } else {
-                                "Autostart disabled"
-                            };
-                            self.toast.show(msg, ToastSeverity::Success);
-
-                            if let ModalState::SystemInfo {
-                                info,
-                                selected_index,
-                                ..
-                            } = &self.modal
-                            {
-                                self.set_modal(ModalState::SystemInfo {
-                                    info: info.clone(),
-                                    autostart_enabled: autostart::is_enabled(),
-                                    selected_index: *selected_index,
-                                });
-                            }
-                        }
-                        Err(e) => {
-                            self.toast.show(
-                                &format!("Failed to toggle autostart: {}", e),
-                                ToastSeverity::Error,
-                            );
-                        }
-                    }
-                }
+                // This message will be used by the Settings modal in the future.
+                // For now, it's a no-op if not in a modal that handles autostart.
                 Task::none()
             }
 
@@ -457,22 +417,24 @@ impl Launcher {
                 Task::none()
             }
 
-            Message::BackupStatusReceived { game_name, status } => {
-                if self.last_queried_game.as_ref() == Some(&game_name) {
-                    match status {
-                        Some(has_backups) => {
-                            self.focused_game_backup_status = Some(has_backups);
-                        }
-                        None => {
-                            self.last_queried_game = None;
-                            self.focused_game_backup_status = None;
-                        }
-                    }
-                }
-                Task::none()
-            }
+             Message::BackupStatusReceived { game_name, status } => {
+                 if self.last_queried_game.as_ref() == Some(&game_name) {
+                     match status {
+                         Some(has_backups) => {
+                             self.focused_game_backup_status = Some(has_backups);
+                         }
+                         None => {
+                             self.last_queried_game = None;
+                             self.focused_game_backup_status = None;
+                         }
+                     }
+                 }
+                 Task::none()
+             }
 
-            Message::None => Task::none(),
+             Message::OpenSettings | Message::CloseSettings | Message::UpdateSteamGridDbApiKey(_) | Message::SettingsKeyboard(_) => Task::none(),
+
+             Message::None => Task::none(),
         }
     }
 
@@ -783,7 +745,6 @@ impl Launcher {
     fn open_system_info(&mut self) -> Task<Message> {
         self.set_modal(ModalState::SystemInfo {
             info: Box::new(None),
-            autostart_enabled: autostart::is_enabled(),
             selected_index: 0,
         });
         Task::perform(
@@ -1333,11 +1294,9 @@ impl Launcher {
             ModalState::AppUpdate(state) => Some(render_app_update_modal(state, scale)),
             ModalState::SystemInfo {
                 info,
-                autostart_enabled,
                 selected_index,
             } => Some(render_system_info_modal(
                 info,
-                *autostart_enabled,
                 *selected_index,
                 scale,
             )),
@@ -1847,9 +1806,6 @@ impl Launcher {
 
     fn handle_system_info_navigation(&mut self, action: Action) -> Task<Message> {
         match action {
-            Action::Select => {
-                return self.update(Message::ToggleAutostart);
-            }
             Action::Back | Action::ShowHelp => {
                 return self.update(Message::CloseSystemInfoModal);
             }
@@ -1965,6 +1921,7 @@ impl Launcher {
             }
             LauncherAction::SystemUpdate => self.update(Message::StartSystemUpdate),
             LauncherAction::SystemInfo => self.update(Message::OpenSystemInfo),
+            LauncherAction::Settings => self.update(Message::OpenSettings),
             LauncherAction::Shutdown => self.system_command("systemctl", &["poweroff"], "shutdown"),
             LauncherAction::Suspend => self.system_command("systemctl", &["suspend"], "suspend"),
             LauncherAction::Exit => self.exit_app(),
