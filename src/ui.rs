@@ -57,6 +57,7 @@ use crate::ui_ludusavi_settings_modal;
 use crate::ui_main_view::{
     get_category_dimensions, render_controls_hint, render_section_row, render_status,
 };
+use crate::ui_settings_modal::render_settings_modal;
 use crate::ui_state::{AppUpdatePhase, AppUpdateState, AuthState, ModalState};
 use crate::ui_system_info_modal::render_system_info_modal;
 use crate::virtual_keyboard::{KeyboardMessage, KeyboardOutput, VirtualKeyboard};
@@ -374,8 +375,31 @@ impl Launcher {
             }
 
             Message::ToggleAutostart => {
-                // This message will be used by the Settings modal in the future.
-                // For now, it's a no-op if not in a modal that handles autostart.
+                if matches!(self.modal, ModalState::Settings { .. }) {
+                    let enabled = crate::autostart::is_enabled();
+                    let result = if enabled {
+                        crate::autostart::disable()
+                    } else {
+                        crate::autostart::enable()
+                    };
+
+                    match result {
+                        Ok(_) => {
+                            let msg = if enabled {
+                                "Autostart disabled"
+                            } else {
+                                "Autostart enabled"
+                            };
+                            self.toast.show(msg, ToastSeverity::Success);
+                        }
+                        Err(e) => {
+                            self.toast.show(
+                                &format!("Failed to toggle autostart: {}", e),
+                                ToastSeverity::Error,
+                            );
+                        }
+                    }
+                }
                 Task::none()
             }
 
@@ -433,16 +457,72 @@ impl Launcher {
                  Task::none()
              }
 
-             Message::OpenSettings | Message::CloseSettings | Message::UpdateSteamGridDbApiKey(_) | Message::SettingsKeyboard(_) => Task::none(),
+             Message::OpenSettings => {
+                 let api_key = self.config.steamgriddb_api_key.clone().unwrap_or_default();
+                 self.set_modal(ModalState::Settings {
+                     selected_index: 0,
+                     editing_api_key: false,
+                     keyboard: None,
+                     api_key_buffer: api_key,
+                 });
+                 Task::none()
+             }
+
+             Message::CloseSettings => self.close_modal_none(),
+
+             Message::UpdateSteamGridDbApiKey(key) => {
+                 self.config.steamgriddb_api_key = if key.is_empty() {
+                     None
+                 } else {
+                     Some(key.clone())
+                 };
+                 
+                 match save_config(&self.config) {
+                     Ok(_) => {
+                         self.sgdb_client = SteamGridDbClient::new(key);
+                         self.toast.show("API key updated", ToastSeverity::Success);
+                     }
+                     Err(e) => {
+                         self.toast.show(
+                             &format!("Failed to save API key: {}", e),
+                             ToastSeverity::Error,
+                         );
+                     }
+                 }
+                 Task::none()
+             }
+
+             Message::SettingsKeyboard(msg) => {
+                 if let ModalState::Settings { keyboard: Some(ref mut kb), .. } = &mut self.modal {
+                     let output = kb.handle_message(msg);
+                     
+                     match output {
+                         KeyboardOutput::Input(value) => {
+                             if let ModalState::Settings { ref mut api_key_buffer, .. } = &mut self.modal {
+                                 *api_key_buffer = value;
+                             }
+                         }
+                         KeyboardOutput::Submit => {
+                             if let ModalState::Settings { api_key_buffer, .. } = &self.modal {
+                                 let key = api_key_buffer.clone();
+                                 return self.update(Message::UpdateSteamGridDbApiKey(key))
+                                     .chain(self.update(Message::CloseSettings));
+                             }
+                         }
+                         KeyboardOutput::None => {}
+                     }
+                 }
+                 Task::none()
+             }
 
              Message::None => Task::none(),
-        }
-    }
+         }
+     }
 
-    // --- Message Handlers ---
+     // --- Message Handlers ---
 
-    /// Checks if enough time has passed since the last battery check and spawns a refresh task if needed.
-    fn maybe_refresh_battery(&mut self) -> Task<Message> {
+     /// Checks if enough time has passed since the last battery check and spawns a refresh task if needed.
+     fn maybe_refresh_battery(&mut self) -> Task<Message> {
         if self.last_battery_check.elapsed().as_secs() < BATTERY_CHECK_INTERVAL_SECS {
             return Task::none();
         }
@@ -1324,7 +1404,24 @@ impl Launcher {
                     self.config.auto_cloud_sync,
                 ))
             }
-            ModalState::Settings { .. } => None,
+            ModalState::Settings {
+                selected_index,
+                editing_api_key,
+                keyboard,
+                api_key_buffer,
+            } => {
+                let autostart_enabled = crate::autostart::is_enabled();
+                let api_key_set = !api_key_buffer.is_empty();
+                Some(render_settings_modal(
+                    *selected_index,
+                    autostart_enabled,
+                    self.config.auto_backup,
+                    self.config.auto_cloud_sync,
+                    api_key_set,
+                    *editing_api_key,
+                    keyboard.as_ref(),
+                ))
+            }
             ModalState::None => None,
         }
     }
@@ -1427,7 +1524,7 @@ impl Launcher {
             ModalState::LudusaviSettings { .. } => {
                 Some(self.handle_ludusavi_settings_navigation(action))
             }
-            ModalState::Settings { .. } => None,
+            ModalState::Settings { .. } => Some(self.handle_settings_navigation(action)),
             ModalState::ContextMenu { .. } => Some(self.handle_context_menu_navigation(action)),
             ModalState::AppPicker(_) => Some(self.handle_app_picker_navigation(action)),
             ModalState::SystemUpdate(_) => Some(self.handle_system_update_navigation(action)),
@@ -1737,6 +1834,160 @@ impl Launcher {
             },
             Action::Back => self.update(Message::CloseLudusaviSettings),
             _ => Task::none(),
+        }
+    }
+
+    fn handle_settings_navigation(&mut self, action: Action) -> Task<Message> {
+        let (mut selected_index, editing_api_key, keyboard, api_key_buffer) = match &self.modal {
+            ModalState::Settings {
+                selected_index,
+                editing_api_key,
+                keyboard,
+                api_key_buffer,
+            } => (*selected_index, *editing_api_key, keyboard.clone(), api_key_buffer.clone()),
+            _ => return Task::none(),
+        };
+
+        if editing_api_key {
+            if let Some(mut kb) = keyboard {
+                match action {
+                    Action::Up => {
+                        kb.move_up();
+                        self.set_modal(ModalState::Settings {
+                            selected_index,
+                            editing_api_key,
+                            keyboard: Some(kb),
+                            api_key_buffer,
+                        });
+                        Task::none()
+                    }
+                    Action::Down => {
+                        kb.move_down();
+                        self.set_modal(ModalState::Settings {
+                            selected_index,
+                            editing_api_key,
+                            keyboard: Some(kb),
+                            api_key_buffer,
+                        });
+                        Task::none()
+                    }
+                    Action::Left => {
+                        kb.move_left();
+                        self.set_modal(ModalState::Settings {
+                            selected_index,
+                            editing_api_key,
+                            keyboard: Some(kb),
+                            api_key_buffer,
+                        });
+                        Task::none()
+                    }
+                    Action::Right => {
+                        kb.move_right();
+                        self.set_modal(ModalState::Settings {
+                            selected_index,
+                            editing_api_key,
+                            keyboard: Some(kb),
+                            api_key_buffer,
+                        });
+                        Task::none()
+                    }
+                    Action::Select => {
+                        let output = kb.select_current();
+                        match output {
+                            KeyboardOutput::Input(value) => {
+                                self.set_modal(ModalState::Settings {
+                                    selected_index,
+                                    editing_api_key,
+                                    keyboard: Some(kb),
+                                    api_key_buffer: value,
+                                });
+                                Task::none()
+                            }
+                            KeyboardOutput::Submit => {
+                                self.update(Message::UpdateSteamGridDbApiKey(api_key_buffer))
+                                    .chain(self.close_modal_none())
+                            }
+                            KeyboardOutput::None => Task::none(),
+                        }
+                    }
+                    Action::Back => {
+                        if kb.value().is_empty() {
+                            self.set_modal(ModalState::Settings {
+                                selected_index,
+                                editing_api_key: false,
+                                keyboard: None,
+                                api_key_buffer: self.config.steamgriddb_api_key.clone().unwrap_or_default(),
+                            });
+                            Task::none()
+                        } else {
+                            let output = kb.backspace();
+                            match output {
+                                KeyboardOutput::Input(value) => {
+                                    self.set_modal(ModalState::Settings {
+                                        selected_index,
+                                        editing_api_key,
+                                        keyboard: Some(kb),
+                                        api_key_buffer: value,
+                                    });
+                                    Task::none()
+                                }
+                                _ => Task::none(),
+                            }
+                        }
+                    }
+                    _ => Task::none(),
+                }
+            } else {
+                Task::none()
+            }
+        } else {
+            let max_index = 4;
+
+            match action {
+                Action::Up | Action::Left => {
+                    selected_index = if selected_index == 0 {
+                        max_index
+                    } else {
+                        selected_index - 1
+                    };
+                    self.set_modal(ModalState::Settings {
+                        selected_index,
+                        editing_api_key,
+                        keyboard,
+                        api_key_buffer,
+                    });
+                    Task::none()
+                }
+                Action::Down | Action::Right => {
+                    selected_index = (selected_index + 1) % (max_index + 1);
+                    self.set_modal(ModalState::Settings {
+                        selected_index,
+                        editing_api_key,
+                        keyboard,
+                        api_key_buffer,
+                    });
+                    Task::none()
+                }
+                Action::Select => match selected_index {
+                    0 => self.update(Message::ToggleAutostart),
+                    1 => self.update(Message::ToggleAutoBackup),
+                    2 => self.update(Message::ToggleAutoCloudSync),
+                    3 => {
+                        let kb = VirtualKeyboard::new(api_key_buffer.clone());
+                        self.set_modal(ModalState::Settings {
+                            selected_index,
+                            editing_api_key: true,
+                            keyboard: Some(kb),
+                            api_key_buffer,
+                        });
+                        Task::none()
+                    }
+                    4 => self.update(Message::CloseSettings),
+                    _ => Task::none(),
+                },
+                Action::Back => self.update(Message::CloseSettings),
+                _ => Task::none(),
+            }
         }
     }
 
@@ -2197,5 +2448,74 @@ mod tests {
         // Left on first item -> should stay
         let _ = launcher.handle_navigation(Action::Left);
         assert_eq!(launcher.apps.selected_index, 0);
+    }
+
+    #[test]
+    fn test_settings_modal_navigation_wrapping() {
+        let (mut launcher, _) = Launcher::new();
+        launcher.set_modal(ModalState::Settings {
+            selected_index: 0,
+            editing_api_key: false,
+            keyboard: None,
+            api_key_buffer: String::new(),
+        });
+
+        let _ = launcher.handle_navigation(Action::Up);
+        if let ModalState::Settings { selected_index, .. } = launcher.modal {
+            assert_eq!(selected_index, 4);
+        } else {
+            panic!("Expected Settings modal");
+        }
+
+        launcher.set_modal(ModalState::Settings {
+            selected_index: 4,
+            editing_api_key: false,
+            keyboard: None,
+            api_key_buffer: String::new(),
+        });
+
+        let _ = launcher.handle_navigation(Action::Down);
+        if let ModalState::Settings { selected_index, .. } = launcher.modal {
+            assert_eq!(selected_index, 0);
+        } else {
+            panic!("Expected Settings modal");
+        }
+    }
+
+    #[test]
+    fn test_settings_modal_keyboard_state_transitions() {
+        let (mut launcher, _) = Launcher::new();
+        launcher.set_modal(ModalState::Settings {
+            selected_index: 3,
+            editing_api_key: false,
+            keyboard: None,
+            api_key_buffer: String::new(),
+        });
+
+        let _ = launcher.handle_navigation(Action::Select);
+        if let ModalState::Settings {
+            editing_api_key,
+            keyboard,
+            ..
+        } = &launcher.modal
+        {
+            assert!(editing_api_key);
+            assert!(keyboard.is_some());
+        } else {
+            panic!("Expected Settings modal");
+        }
+
+        let _ = launcher.handle_navigation(Action::Back);
+        if let ModalState::Settings {
+            editing_api_key,
+            keyboard,
+            ..
+        } = &launcher.modal
+        {
+            assert!(!editing_api_key);
+            assert!(keyboard.is_none());
+        } else {
+            panic!("Expected Settings modal");
+        }
     }
 }

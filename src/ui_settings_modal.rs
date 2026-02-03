@@ -14,7 +14,6 @@ pub fn render_settings_modal<'a>(
     api_key_set: bool,
     editing_api_key: bool,
     keyboard: Option<&'a VirtualKeyboard>,
-    _api_key_buffer: &str,
 ) -> Element<'a, Message> {
     let scale = 1.0;
 

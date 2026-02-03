@@ -7,7 +7,7 @@ use crate::ui_theme::*;
 
 pub fn render_system_info_modal<'a>(
     info: &'a Option<GamingSystemInfo>,
-    selected_index: usize,
+    _selected_index: usize,
     scale: f32,
 ) -> Element<'a, Message> {
     let title = Text::new("System Information")
