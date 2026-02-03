@@ -27,6 +27,7 @@ use uuid::Uuid;
 use crate::assets::get_default_icon;
 use crate::auth_dialog::render_auth_dialog;
 use crate::auth_flow::{AuthFlow, AuthFlowState};
+use crate::autostart;
 use crate::category_list::CategoryList;
 use crate::desktop_apps::{scan_desktop_apps, DesktopApp};
 use crate::focus_manager::{monitor_app_process, MonitorTarget};
@@ -367,6 +368,51 @@ impl Launcher {
                             &format!("Failed to save settings: {}", e),
                             ToastSeverity::Error,
                         );
+                    }
+                }
+                Task::none()
+            }
+
+            Message::ToggleAutostart => {
+                if let ModalState::SystemInfo {
+                    autostart_enabled, ..
+                } = &self.modal
+                {
+                    let new_state = !autostart_enabled;
+                    let result = if new_state {
+                        autostart::enable()
+                    } else {
+                        autostart::disable()
+                    };
+
+                    match result {
+                        Ok(_) => {
+                            let msg = if new_state {
+                                "Autostart enabled"
+                            } else {
+                                "Autostart disabled"
+                            };
+                            self.toast.show(msg, ToastSeverity::Success);
+
+                            if let ModalState::SystemInfo {
+                                info,
+                                selected_index,
+                                ..
+                            } = &self.modal
+                            {
+                                self.set_modal(ModalState::SystemInfo {
+                                    info: info.clone(),
+                                    autostart_enabled: autostart::is_enabled(),
+                                    selected_index: *selected_index,
+                                });
+                            }
+                        }
+                        Err(e) => {
+                            self.toast.show(
+                                &format!("Failed to toggle autostart: {}", e),
+                                ToastSeverity::Error,
+                            );
+                        }
                     }
                 }
                 Task::none()
@@ -735,7 +781,11 @@ impl Launcher {
     }
 
     fn open_system_info(&mut self) -> Task<Message> {
-        self.set_modal(ModalState::SystemInfo(Box::new(None)));
+        self.set_modal(ModalState::SystemInfo {
+            info: Box::new(None),
+            autostart_enabled: autostart::is_enabled(),
+            selected_index: 0,
+        });
         Task::perform(
             async { tokio::task::spawn_blocking(fetch_system_info).await.ok() },
             |info| {
@@ -749,8 +799,8 @@ impl Launcher {
     }
 
     fn handle_system_info_loaded(&mut self, info_box: Box<GamingSystemInfo>) -> Task<Message> {
-        if let ModalState::SystemInfo(state) = &mut self.modal {
-            **state = Some(*info_box);
+        if let ModalState::SystemInfo { info, .. } = &mut self.modal {
+            **info = Some(*info_box);
         }
         Task::none()
     }
@@ -1281,7 +1331,16 @@ impl Launcher {
             }
             ModalState::SystemUpdate(state) => Some(render_system_update_modal(state, scale)),
             ModalState::AppUpdate(state) => Some(render_app_update_modal(state, scale)),
-            ModalState::SystemInfo(info) => Some(render_system_info_modal(info, scale)),
+            ModalState::SystemInfo {
+                info,
+                autostart_enabled,
+                selected_index,
+            } => Some(render_system_info_modal(
+                info,
+                *autostart_enabled,
+                *selected_index,
+                scale,
+            )),
             ModalState::SystemUpdateAuth { auth, .. } => {
                 Some(render_auth_dialog(&auth.flow, &auth.keyboard, scale))
             }
@@ -1414,7 +1473,7 @@ impl Launcher {
             ModalState::AppUpdate(state) => {
                 handle_app_update_navigation(state, action).map(|message| self.update(message))
             }
-            ModalState::SystemInfo(_) => Some(self.handle_system_info_navigation(action)),
+            ModalState::SystemInfo { .. } => Some(self.handle_system_info_navigation(action)),
             ModalState::AppNotFound { .. } => Some(self.handle_app_not_found_navigation(action)),
             ModalState::Auth(_) => Some(self.handle_auth_navigation(action)),
             ModalState::None => None,
@@ -1788,7 +1847,10 @@ impl Launcher {
 
     fn handle_system_info_navigation(&mut self, action: Action) -> Task<Message> {
         match action {
-            Action::Back | Action::Select | Action::ShowHelp => {
+            Action::Select => {
+                return self.update(Message::ToggleAutostart);
+            }
+            Action::Back | Action::ShowHelp => {
                 return self.update(Message::CloseSystemInfoModal);
             }
             _ => {}

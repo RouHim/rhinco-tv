@@ -20,7 +20,11 @@ pub enum ModalState {
         auth: AuthState,
     },
     AppUpdate(AppUpdateState),
-    SystemInfo(Box<Option<GamingSystemInfo>>),
+    SystemInfo {
+        info: Box<Option<GamingSystemInfo>>,
+        autostart_enabled: bool,
+        selected_index: usize,
+    },
     Auth(AuthState),
     AppNotFound {
         item_id: Uuid,

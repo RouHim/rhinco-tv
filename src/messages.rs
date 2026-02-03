@@ -74,6 +74,8 @@ pub enum Message {
     CloseLudusaviSettings,
     ToggleAutoBackup,
     ToggleAutoCloudSync,
+    #[allow(dead_code)]
+    ToggleAutostart,
     LudusaviOperationCompleted {
         operation: String,
         game_name: Option<String>,
