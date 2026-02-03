@@ -22,7 +22,6 @@ pub enum ModalState {
     AppUpdate(AppUpdateState),
     SystemInfo {
         info: Box<Option<GamingSystemInfo>>,
-        autostart_enabled: bool,
         selected_index: usize,
     },
     Auth(AuthState),

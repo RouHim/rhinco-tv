@@ -7,7 +7,6 @@ use crate::ui_theme::*;
 
 pub fn render_system_info_modal<'a>(
     info: &'a Option<GamingSystemInfo>,
-    autostart_enabled: bool,
     selected_index: usize,
     scale: f32,
 ) -> Element<'a, Message> {
@@ -27,7 +26,7 @@ pub fn render_system_info_modal<'a>(
         .center_x(Length::Fill);
 
     let content: Element<'a, Message> = if let Some(info) = info {
-        let left_column = build_left_column(info, autostart_enabled, selected_index, scale);
+        let left_column = build_left_column(info, scale);
         let right_column = build_right_column(info, scale);
 
         let columns = Row::new()
@@ -115,12 +114,7 @@ pub fn render_system_info_modal<'a>(
         .into()
 }
 
-fn build_left_column(
-    info: &GamingSystemInfo,
-    autostart_enabled: bool,
-    selected_index: usize,
-    scale: f32,
-) -> Element<'_, Message> {
+fn build_left_column(info: &GamingSystemInfo, scale: f32) -> Element<'_, Message> {
     let mut column = Column::new().spacing(scaled(8.0, scale));
 
     column = column.push(section_header_accent("System", scale));
@@ -132,8 +126,6 @@ fn build_left_column(
     column = column.push(info_row("OS", info.os_name.clone(), scale));
     column = column.push(info_row("Kernel", info.kernel_version.clone(), scale));
     column = column.push(info_row("Session", info.xdg_session_type.clone(), scale));
-
-    column = column.push(autostart_row(autostart_enabled, selected_index == 0, scale));
 
     column = column.push(section_spacer(scale));
 
@@ -361,72 +353,6 @@ fn info_row_colored(label: &str, value: String, color: Color, scale: f32) -> Ele
                 .color(color),
         )
         .spacing(scaled(BASE_PADDING_SMALL, scale))
-        .into()
-}
-
-fn autostart_row(enabled: bool, is_selected: bool, scale: f32) -> Element<'static, Message> {
-    let (symbol, indicator_color) = if enabled {
-        ("●", COLOR_SUCCESS)
-    } else {
-        ("○", COLOR_WARNING)
-    };
-
-    let indicator = Text::new(symbol)
-        .font(SANSATION)
-        .size(scaled(BASE_FONT_MEDIUM, scale))
-        .color(indicator_color);
-
-    let value_text = if enabled { "Enabled" } else { "Disabled" };
-    let value_color = if is_selected {
-        Color::WHITE
-    } else if enabled {
-        COLOR_SUCCESS
-    } else {
-        COLOR_WARNING
-    };
-
-    let row_content = Row::new()
-        .push(indicator)
-        .push(
-            Container::new(
-                Text::new("Autostart")
-                    .font(SANSATION)
-                    .size(scaled(17.0, scale))
-                    .color(if is_selected {
-                        Color::WHITE
-                    } else {
-                        COLOR_TEXT_SOFT
-                    }),
-            )
-            .width(scaled_fixed(200.0, scale)),
-        )
-        .push(
-            Text::new(value_text)
-                .font(SANSATION)
-                .size(scaled(17.0, scale))
-                .color(value_color),
-        )
-        .spacing(scaled(8.0, scale));
-
-    let border_radius = scaled(5.0, scale);
-    Container::new(row_content)
-        .padding(scaled(4.0, scale))
-        .width(Length::Fill)
-        .style(move |_| {
-            if is_selected {
-                iced::widget::container::Style {
-                    background: Some(COLOR_ACCENT.into()),
-                    border: iced::Border {
-                        color: Color::WHITE,
-                        width: 1.0,
-                        radius: border_radius.into(),
-                    },
-                    ..Default::default()
-                }
-            } else {
-                iced::widget::container::Style::default()
-            }
-        })
         .into()
 }
 
