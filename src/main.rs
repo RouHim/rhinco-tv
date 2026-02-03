@@ -35,6 +35,7 @@ mod ui_app_update_modal;
 mod ui_background;
 mod ui_components;
 mod ui_ludusavi_settings_modal;
+mod ui_settings_modal;
 mod ui_main_view;
 mod ui_modals;
 mod ui_state;
