@@ -1,3 +1,17 @@
+# [2.8.0](https://github.com/RouHim/rhinco-tv/compare/v2.7.0...v2.8.0) (2026-02-04)
+
+
+### Features
+
+* **autostart:** add autostart module with enable/disable functions ([bc044c1](https://github.com/RouHim/rhinco-tv/commit/bc044c15779dd664e42d2d386f1b6bbe33ce85e2))
+* **settings:** add message handlers for Settings modal ([5b866d4](https://github.com/RouHim/rhinco-tv/commit/5b866d4ca10fc9696328c50de8de117e43b9f70d))
+* **settings:** add messages and action types for Settings modal ([5c4f305](https://github.com/RouHim/rhinco-tv/commit/5c4f3054c3a518472a071e3abf882673cd3a064a))
+* **settings:** add ModalState::Settings variant with state management ([b5f6e41](https://github.com/RouHim/rhinco-tv/commit/b5f6e41e1f8646a0c536978352b7349188e287c4))
+* **settings:** add Settings item to System menu ([1dc757b](https://github.com/RouHim/rhinco-tv/commit/1dc757b827231f2f2b18acea1fb25761abfc8ea2))
+* **settings:** create settings modal UI renderer ([8634afa](https://github.com/RouHim/rhinco-tv/commit/8634afa3a7c7dad79c8417bbdaf2eff68a49a6ab))
+* **settings:** implement navigation and message handlers ([f92c0de](https://github.com/RouHim/rhinco-tv/commit/f92c0de7c246f665286818727c3f5e1295564f0e))
+* **ui:** add autostart toggle to system info modal ([a22732d](https://github.com/RouHim/rhinco-tv/commit/a22732d1d5cb2d30539f08771d2a6bdb814eb465))
+
 # [2.7.0](https://github.com/RouHim/rhinco-tv/compare/v2.6.0...v2.7.0) (2026-02-01)
 
 
