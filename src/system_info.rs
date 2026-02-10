@@ -55,7 +55,7 @@ pub struct GamingSystemInfo {
     pub vulkan_info: String,
     pub xdg_session_type: String,
     pub wine_versions: Vec<(String, String)>,
-    pub proton_versions: Vec<(String, String)>,
+    pub compatibility_tools: Vec<(String, String)>,
     pub disks: Vec<DiskInfo>,
     pub zram: ZramInfo,
     pub controllers: Vec<ControllerInfo>,
@@ -73,7 +73,7 @@ pub fn fetch_system_info() -> GamingSystemInfo {
     let vulkan_info = get_vulkan_info();
     let xdg_session_type = env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "Unknown".to_string());
     let wine_versions = get_wine_versions();
-    let proton_versions = get_proton_versions();
+    let compatibility_tools = get_compatibility_tools();
     let disks = get_disk_info();
     let zram = get_zram_info();
     let controllers = get_controllers();
@@ -92,7 +92,7 @@ pub fn fetch_system_info() -> GamingSystemInfo {
         vulkan_info,
         xdg_session_type,
         wine_versions,
-        proton_versions,
+        compatibility_tools,
         disks,
         zram,
         controllers,
@@ -280,7 +280,7 @@ fn extract_version_from_name(name: &str) -> String {
     "Unknown".to_string()
 }
 
-fn get_proton_versions() -> Vec<(String, String)> {
+fn get_compatibility_tools() -> Vec<(String, String)> {
     let mut versions = Vec::new();
     let home = env::var("HOME").unwrap_or_else(|_| "/".to_string());
 

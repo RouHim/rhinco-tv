@@ -225,15 +225,15 @@ fn build_right_column(info: &GamingSystemInfo, scale: f32) -> Element<'_, Messag
         }
     }
 
-    if !info.proton_versions.is_empty() {
+    if !info.compatibility_tools.is_empty() {
         column = column.push(Space::new().height(scaled_fixed(5.0, scale)));
         column = column.push(
-            Text::new("Proton Versions")
+            Text::new("Compatibility Tools")
                 .font(SANSATION)
                 .size(scaled(15.0, scale))
                 .color(COLOR_TEXT_SOFT),
         );
-        for (name, version) in &info.proton_versions {
+        for (name, version) in &info.compatibility_tools {
             column = column.push(
                 Text::new(format!("  {} — {}", name, version))
                     .font(SANSATION)
