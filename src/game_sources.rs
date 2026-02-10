@@ -170,6 +170,32 @@ fn scan_heroic_games() -> Vec<AppEntry> {
     games
 }
 
+/// Read Heroic's installed.json for a specific store and return app IDs
+fn read_heroic_installed_ids(root: &Path, store: &str) -> HashSet<String> {
+    let installed_path = match store {
+        "nile" => root.join("nile_config").join("installed.json"),
+        _ => root.join(format!("{}_store", store)).join("installed.json"),
+    };
+
+    let Ok(contents) = fs::read_to_string(&installed_path) else {
+        return HashSet::new();
+    };
+
+    let Ok(value) = serde_json::from_str::<Value>(&contents) else {
+        return HashSet::new();
+    };
+
+    let Some(installed_array) = value.get("installed").and_then(|v| v.as_array()) else {
+        return HashSet::new();
+    };
+
+    installed_array
+        .iter()
+        .filter_map(|item| item.get("appName").and_then(|v| v.as_str()))
+        .map(|s| s.to_string())
+        .collect()
+}
+
 fn scan_heroic_root(root: &Path, games: &mut Vec<AppEntry>, seen: &mut HashSet<String>) {
     let store_cache = root.join("store_cache");
 
@@ -179,23 +205,27 @@ fn scan_heroic_root(root: &Path, games: &mut Vec<AppEntry>, seen: &mut HashSet<S
         ("gog_library.json", "gog"),
         ("nile_library.json", "nile"),
     ] {
-        process_heroic_file(&store_cache.join(file), store, games, seen);
+        let installed_ids = read_heroic_installed_ids(root, store);
+        process_heroic_file(&store_cache.join(file), store, games, seen, &installed_ids);
     }
 
     // 2. Sideloads
     // Primary: sideload_apps/library.json
     // Fallback: store_cache/sideload_cache.json (legacy format)
+    let empty_set = HashSet::new();
     process_heroic_file(
         &root.join("sideload_apps/library.json"),
         "sideload",
         games,
         seen,
+        &empty_set,
     );
     process_heroic_file(
         &store_cache.join("sideload_cache.json"),
         "sideload",
         games,
         seen,
+        &empty_set,
     );
 }
 
@@ -204,9 +234,10 @@ fn process_heroic_file(
     store_hint: &str,
     games: &mut Vec<AppEntry>,
     seen: &mut HashSet<String>,
+    installed_ids: &HashSet<String>,
 ) {
     if let Some(contents) = read_file_if_exists(path) {
-        for game in parse_heroic_library_json(&contents, store_hint) {
+        for game in parse_heroic_library_json_with_installed(&contents, store_hint, installed_ids) {
             if !is_ignored_app(&game.title, &game.app_name) && seen.insert(game.app_name.clone()) {
                 let exec = heroic_exec(&game.store, &game.app_name);
                 games.push(
@@ -262,7 +293,17 @@ struct HeroicGame {
     launch_key: String,
 }
 
+#[allow(dead_code)]
 fn parse_heroic_library_json(contents: &str, store_hint: &str) -> Vec<HeroicGame> {
+    let empty_set = HashSet::new();
+    parse_heroic_library_json_with_installed(contents, store_hint, &empty_set)
+}
+
+fn parse_heroic_library_json_with_installed(
+    contents: &str,
+    store_hint: &str,
+    installed_ids: &HashSet<String>,
+) -> Vec<HeroicGame> {
     let value: Value = match serde_json::from_str(contents) {
         Ok(value) => value,
         Err(_err) => {
@@ -271,7 +312,7 @@ fn parse_heroic_library_json(contents: &str, store_hint: &str) -> Vec<HeroicGame
     };
 
     let mut games = Vec::new();
-    collect_heroic_games(&value, store_hint, true, &mut games);
+    collect_heroic_games(&value, store_hint, true, &mut games, installed_ids);
     games
 }
 
@@ -280,24 +321,39 @@ fn collect_heroic_games(
     store_hint: &str,
     require_installed: bool,
     games: &mut Vec<HeroicGame>,
+    installed_ids: &HashSet<String>,
 ) {
     match value {
         Value::Array(items) => {
             for item in items {
-                collect_heroic_games(item, store_hint, require_installed, games);
+                collect_heroic_games(item, store_hint, require_installed, games, installed_ids);
             }
         }
         Value::Object(map) => {
-            if let Some(game) = heroic_game_from_object(None, map, store_hint, require_installed) {
+            if let Some(game) =
+                heroic_game_from_object(None, map, store_hint, require_installed, installed_ids)
+            {
                 games.push(game);
                 return;
             }
 
             if let Some(installed) = map.get("installed") {
-                collect_heroic_games(installed, store_hint, require_installed, games);
+                collect_heroic_games(
+                    installed,
+                    store_hint,
+                    require_installed,
+                    games,
+                    installed_ids,
+                );
             }
             if let Some(installed) = map.get("games") {
-                collect_heroic_games(installed, store_hint, require_installed, games);
+                collect_heroic_games(
+                    installed,
+                    store_hint,
+                    require_installed,
+                    games,
+                    installed_ids,
+                );
             }
 
             for (key, value) in map {
@@ -307,17 +363,31 @@ fn collect_heroic_games(
 
                 match value {
                     Value::Object(obj) => {
-                        if let Some(game) =
-                            heroic_game_from_object(Some(key), obj, store_hint, require_installed)
-                        {
+                        if let Some(game) = heroic_game_from_object(
+                            Some(key),
+                            obj,
+                            store_hint,
+                            require_installed,
+                            installed_ids,
+                        ) {
                             games.push(game);
                         } else {
-                            collect_heroic_games(value, store_hint, require_installed, games);
+                            collect_heroic_games(
+                                value,
+                                store_hint,
+                                require_installed,
+                                games,
+                                installed_ids,
+                            );
                         }
                     }
-                    Value::Array(_) => {
-                        collect_heroic_games(value, store_hint, require_installed, games)
-                    }
+                    Value::Array(_) => collect_heroic_games(
+                        value,
+                        store_hint,
+                        require_installed,
+                        games,
+                        installed_ids,
+                    ),
                     _ => {}
                 }
             }
@@ -331,7 +401,14 @@ fn heroic_game_from_object(
     obj: &serde_json::Map<String, Value>,
     store_hint: &str,
     require_installed: bool,
+    installed_ids: &HashSet<String>,
 ) -> Option<HeroicGame> {
+    let app_name_opt = obj
+        .get("app_name")
+        .and_then(|value| value.as_str())
+        .or_else(|| obj.get("appName").and_then(|value| value.as_str()))
+        .or(key);
+
     let installed = obj
         .get("installed")
         .and_then(parse_json_bool)
@@ -343,19 +420,16 @@ fn heroic_game_from_object(
                 .and_then(parse_json_bool)
         });
 
-    if require_installed {
-        if installed != Some(true) {
-            return None;
-        }
-    } else if matches!(installed, Some(false)) {
+    let is_in_installed_list = app_name_opt.is_some_and(|name| installed_ids.contains(name));
+
+    if require_installed && installed != Some(true) && !is_in_installed_list {
         return None;
     }
 
-    let app_name = obj
-        .get("app_name")
-        .and_then(|value| value.as_str())
-        .or_else(|| obj.get("appName").and_then(|value| value.as_str()))
-        .or(key);
+    if !require_installed && matches!(installed, Some(false)) {
+        return None;
+    }
+
     let title = obj
         .get("title")
         .and_then(|value| value.as_str())
@@ -370,7 +444,7 @@ fn heroic_game_from_object(
         .or_else(|| obj.get("backend").and_then(|value| value.as_str()))
         .unwrap_or(store_hint);
 
-    let app_name = app_name?.trim();
+    let app_name = app_name_opt?.trim();
     let title = title?.trim();
 
     if app_name.is_empty() || title.is_empty() {
@@ -595,6 +669,104 @@ mod tests {
         assert!(is_ignored_app("Proton Experimental", "1493710"));
         assert!(is_ignored_app("Steam Linux Runtime - Sniper", "1628350"));
         assert!(!is_ignored_app("My Game", "123456"));
+    }
+
+    #[test]
+    fn test_heroic_installed_json_parsing() {
+        let contents = r#"
+        {
+            "installed": [
+                {"appName": "1207659032", "install_path": "/home/test/Games/Heroic/RCT3"},
+                {"appName": "1234567890", "install_path": "/home/test/Games/Heroic/TestGame"}
+            ]
+        }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let heroic_root = temp_dir.join("heroic_test_installed");
+        let store_dir = heroic_root.join("gog_store");
+        std::fs::create_dir_all(&store_dir).unwrap();
+        let installed_path = store_dir.join("installed.json");
+        std::fs::write(&installed_path, contents).unwrap();
+
+        let installed_ids = read_heroic_installed_ids(&heroic_root, "gog");
+
+        assert!(installed_ids.contains("1207659032"));
+        assert!(installed_ids.contains("1234567890"));
+        assert_eq!(installed_ids.len(), 2);
+
+        std::fs::remove_dir_all(&heroic_root).ok();
+    }
+
+    #[test]
+    fn test_heroic_gog_game_detected_via_installed_json() {
+        let contents = r#"
+        {
+            "games": [
+                {
+                    "app_name": "1207659032",
+                    "title": "RollerCoaster Tycoon 3",
+                    "is_installed": false,
+                    "runner": "gog",
+                    "install": {"is_dlc": false}
+                }
+            ]
+        }
+        "#;
+
+        let mut installed_ids = std::collections::HashSet::new();
+        installed_ids.insert("1207659032".to_string());
+
+        let games = parse_heroic_library_json_with_installed(contents, "gog", &installed_ids);
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].app_name, "1207659032");
+        assert_eq!(games[0].title, "RollerCoaster Tycoon 3");
+    }
+
+    #[test]
+    fn test_heroic_gog_game_not_detected_when_not_in_installed_json() {
+        let contents = r#"
+        {
+            "games": [
+                {
+                    "app_name": "1207659032",
+                    "title": "RollerCoaster Tycoon 3",
+                    "is_installed": false,
+                    "runner": "gog",
+                    "install": {"is_dlc": false}
+                }
+            ]
+        }
+        "#;
+
+        let installed_ids = std::collections::HashSet::new();
+
+        let games = parse_heroic_library_json_with_installed(contents, "gog", &installed_ids);
+        assert_eq!(games.len(), 0);
+    }
+
+    #[test]
+    fn test_heroic_gog_game_detected_via_is_installed_true() {
+        let contents = r#"
+        {
+            "games": [
+                {
+                    "app_name": "1207659032",
+                    "title": "RollerCoaster Tycoon 3",
+                    "is_installed": true,
+                    "runner": "gog",
+                    "install": {"is_dlc": false}
+                }
+            ]
+        }
+        "#;
+
+        let installed_ids = std::collections::HashSet::new();
+
+        let games = parse_heroic_library_json_with_installed(contents, "gog", &installed_ids);
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].app_name, "1207659032");
+        assert_eq!(games[0].title, "RollerCoaster Tycoon 3");
     }
 
     #[test]
