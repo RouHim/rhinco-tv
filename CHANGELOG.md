@@ -1,3 +1,5 @@
+## [2.9.1](https://github.com/RouHim/rhinco-tv/compare/v2.9.0...v2.9.1) (2026-02-13)
+
 # [2.9.0](https://github.com/RouHim/rhinco-tv/compare/v2.8.0...v2.9.0) (2026-02-13)
 
 
