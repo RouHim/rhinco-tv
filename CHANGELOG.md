@@ -1,3 +1,17 @@
+# [2.9.0](https://github.com/RouHim/rhinco-tv/compare/v2.8.0...v2.9.0) (2026-02-13)
+
+
+### Bug Fixes
+
+* **games:** cross-reference Heroic installed.json for reliable game detection ([2b661a3](https://github.com/RouHim/rhinco-tv/commit/2b661a367f1ec89f58b20943a380c4f13f9c568c))
+* **system-info:** detect all compatibility tools via marker files instead of name matching ([e0ee13d](https://github.com/RouHim/rhinco-tv/commit/e0ee13d7e6e7bd56524b9c611967c0b2811d5aa0))
+* **ui:** use gear icon for settings tile ([d0cd628](https://github.com/RouHim/rhinco-tv/commit/d0cd628c8eed123a234bfe737294c3b8a5adc68e))
+
+
+### Features
+
+* **games:** add Zoom Platform library scanning for Heroic ([2b4f8bc](https://github.com/RouHim/rhinco-tv/commit/2b4f8bc0e68d4df4b1e39bf8ff05d18e181b9f9d))
+
 # [2.8.0](https://github.com/RouHim/rhinco-tv/compare/v2.7.0...v2.8.0) (2026-02-04)
 
 
