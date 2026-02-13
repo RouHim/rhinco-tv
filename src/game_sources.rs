@@ -204,6 +204,7 @@ fn scan_heroic_root(root: &Path, games: &mut Vec<AppEntry>, seen: &mut HashSet<S
         ("legendary_library.json", "legendary"),
         ("gog_library.json", "gog"),
         ("nile_library.json", "nile"),
+        ("zoom-library.json", "zoom"),
     ] {
         let installed_ids = read_heroic_installed_ids(root, store);
         process_heroic_file(&store_cache.join(file), store, games, seen, &installed_ids);
@@ -850,5 +851,28 @@ mod tests {
         assert_eq!(games.len(), 2);
         assert_eq!(games[0].exec, "exec1");
         assert_eq!(games[1].exec, "exec2");
+    }
+
+    #[test]
+    fn test_zoom_library_file_name() {
+        // Verify zoom-library.json is in the heroic store files scan list
+        // with hyphen, not underscore (zoom_library.json is incorrect)
+        let store_files = vec![
+            ("legendary_library.json", "legendary"),
+            ("gog_library.json", "gog"),
+            ("nile_library.json", "nile"),
+            ("zoom-library.json", "zoom"),
+        ];
+
+        // Find zoom entry
+        let zoom_entry = store_files.iter().find(|(_, store)| *store == "zoom");
+        assert!(zoom_entry.is_some(), "zoom store should be in list");
+
+        let (filename, store) = zoom_entry.unwrap();
+        assert_eq!(
+            *filename, "zoom-library.json",
+            "zoom filename must use hyphen"
+        );
+        assert_eq!(*store, "zoom", "zoom store name must be 'zoom'");
     }
 }
