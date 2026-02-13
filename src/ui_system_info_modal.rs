@@ -212,17 +212,20 @@ fn build_right_column(info: &GamingSystemInfo, scale: f32) -> Element<'_, Messag
         scale,
     ));
 
-    if info.wine_versions.is_empty() {
+    // Find Wine in compatibility_tools (if present)
+    let wine_entry = info
+        .compatibility_tools
+        .iter()
+        .find(|(name, _)| name == "Wine");
+    if wine_entry.is_none() {
         column = column.push(info_row_colored(
             "Wine",
             "Not Installed".to_string(),
             COLOR_TEXT_DIM,
             scale,
         ));
-    } else {
-        for (name, version) in &info.wine_versions {
-            column = column.push(info_row(name, version.clone(), scale));
-        }
+    } else if let Some((name, version)) = wine_entry {
+        column = column.push(info_row(name, version.clone(), scale));
     }
 
     if !info.compatibility_tools.is_empty() {
@@ -234,12 +237,15 @@ fn build_right_column(info: &GamingSystemInfo, scale: f32) -> Element<'_, Messag
                 .color(COLOR_TEXT_SOFT),
         );
         for (name, version) in &info.compatibility_tools {
-            column = column.push(
-                Text::new(format!("  {} — {}", name, version))
-                    .font(SANSATION)
-                    .size(scaled(BASE_FONT_MEDIUM, scale))
-                    .color(COLOR_TEXT_BRIGHT),
-            );
+            // Skip Wine since it's displayed separately above
+            if name != "Wine" {
+                column = column.push(
+                    Text::new(format!("  {} — {}", name, version))
+                        .font(SANSATION)
+                        .size(scaled(BASE_FONT_MEDIUM, scale))
+                        .color(COLOR_TEXT_BRIGHT),
+                );
+            }
         }
     }
 

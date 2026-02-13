@@ -54,7 +54,6 @@ pub struct GamingSystemInfo {
     pub gpu_driver: String,
     pub vulkan_info: String,
     pub xdg_session_type: String,
-    pub wine_versions: Vec<(String, String)>,
     pub compatibility_tools: Vec<(String, String)>,
     pub disks: Vec<DiskInfo>,
     pub zram: ZramInfo,
@@ -72,7 +71,6 @@ pub fn fetch_system_info() -> GamingSystemInfo {
     let (gpu_info, gpu_driver) = get_gpu_info();
     let vulkan_info = get_vulkan_info();
     let xdg_session_type = env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "Unknown".to_string());
-    let wine_versions = get_wine_versions();
     let compatibility_tools = get_compatibility_tools();
     let disks = get_disk_info();
     let zram = get_zram_info();
@@ -91,7 +89,6 @@ pub fn fetch_system_info() -> GamingSystemInfo {
         gpu_driver,
         vulkan_info,
         xdg_session_type,
-        wine_versions,
         compatibility_tools,
         disks,
         zram,
@@ -243,16 +240,6 @@ fn get_vulkan_info() -> String {
     "Not Available".to_string()
 }
 
-fn get_wine_versions() -> Vec<(String, String)> {
-    if let Ok(output) = Command::new("wine").arg("--version").output() {
-        let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        vec![("Wine".to_string(), version)]
-    } else {
-        vec![]
-    }
-}
-
-/// Read version from a Proton installation directory's version file
 fn read_proton_version_file(dir: &std::path::Path) -> Option<String> {
     let version_file = dir.join("version");
     if let Ok(content) = fs::read_to_string(&version_file) {
@@ -345,6 +332,14 @@ fn get_compatibility_tools() -> Vec<(String, String)> {
 
     search_paths.push(PathBuf::from("/usr/share/steam/compatibilitytools.d"));
     search_paths.push(PathBuf::from("/usr/local/share/steam/compatibilitytools.d"));
+
+    // Detect system Wine installation
+    if let Ok(output) = Command::new("wine").arg("--version").output() {
+        let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !version.is_empty() {
+            versions.push(("Wine".to_string(), version));
+        }
+    }
 
     for path in search_paths {
         let is_steamapps_common = path.ends_with("steamapps/common");
