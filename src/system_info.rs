@@ -734,7 +734,7 @@ mod tests {
         fs::create_dir_all(&proton_dir).unwrap();
 
         // Create version file
-        fs::write(&proton_dir.join("version"), "1234567890 Proton 9.0").unwrap();
+        fs::write(proton_dir.join("version"), "1234567890 Proton 9.0").unwrap();
 
         // This validates the regression guard - steamapps/common should use name filter
         // We test read_proton_version_file which is still used

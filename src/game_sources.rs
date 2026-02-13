@@ -857,7 +857,7 @@ mod tests {
     fn test_zoom_library_file_name() {
         // Verify zoom-library.json is in the heroic store files scan list
         // with hyphen, not underscore (zoom_library.json is incorrect)
-        let store_files = vec![
+        let store_files = [
             ("legendary_library.json", "legendary"),
             ("gog_library.json", "gog"),
             ("nile_library.json", "nile"),
