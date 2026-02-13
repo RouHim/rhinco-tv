@@ -30,6 +30,10 @@ pub fn info_icon<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
     fontawesome::info().size(size).color(Color::WHITE).into()
 }
 
+pub fn gear_icon<'a, Message: 'a>(size: f32) -> Element<'a, Message> {
+    fontawesome::gear().size(size).color(Color::WHITE).into()
+}
+
 pub fn gamepad_icon<'a, Message: 'a>(size: f32, color: Color) -> Element<'a, Message> {
     fontawesome::gamepad().size(size).color(color).into()
 }
