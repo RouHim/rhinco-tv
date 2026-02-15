@@ -45,6 +45,8 @@ pub struct LudusaviResult {
     pub has_backups: bool,
     #[allow(dead_code)]
     pub error_message: Option<String>,
+    #[allow(dead_code)]
+    pub unknown_games: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +120,7 @@ fn parse_json_response(
             games_processed: 0,
             has_backups: false,
             error_message: Some("No response from Ludusavi".into()),
+            unknown_games: vec![],
         });
     }
 
@@ -140,12 +143,18 @@ fn parse_json_response(
 
     let some_games_failed = get_bool_at(&v, &["errors", "someGamesFailed"]);
 
-    let unknown_games = v
+    let unknown_games_vec: Vec<String> = v
         .get("errors")
         .and_then(|e| e.get("unknownGames"))
         .and_then(|v| v.as_array())
-        .map(|a| !a.is_empty())
-        .unwrap_or(false);
+        .map(|a| {
+            a.iter()
+                .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let unknown_games_flag = !unknown_games_vec.is_empty();
 
     let games_processed = get_u64_at(&v, &["overall", "processedGames"]) as usize;
 
@@ -166,14 +175,15 @@ fn parse_json_response(
     };
 
     Ok(LudusaviResult {
-        success: !some_games_failed && !unknown_games,
+        success: !some_games_failed && !unknown_games_flag,
         games_processed,
         has_backups,
-        error_message: if unknown_games {
+        error_message: if unknown_games_flag {
             Some("Game not found in Ludusavi database".into())
         } else {
             None
         },
+        unknown_games: unknown_games_vec,
     })
 }
 
@@ -222,6 +232,7 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.games_processed, 1);
         assert!(result.error_message.is_none());
+        assert!(result.unknown_games.is_empty());
     }
 
     #[test]
@@ -237,6 +248,7 @@ mod tests {
         assert_eq!(result.games_processed, 0);
         assert!(result.error_message.is_some());
         assert!(result.error_message.as_ref().unwrap().contains("not found"));
+        assert!(result.unknown_games.contains(&"Unknown Game".to_string()));
     }
 
     #[test]
@@ -254,6 +266,7 @@ mod tests {
         let result = parse_json_response(json, LudusaviOperation::QueryBackups).unwrap();
         assert!(result.success);
         assert!(result.has_backups);
+        assert!(result.unknown_games.is_empty());
     }
 
     #[test]
@@ -269,6 +282,7 @@ mod tests {
         let result = parse_json_response(json, LudusaviOperation::QueryBackups).unwrap();
         assert!(result.success);
         assert!(!result.has_backups);
+        assert!(result.unknown_games.is_empty());
     }
 
     #[test]
@@ -280,6 +294,7 @@ mod tests {
         let result = parse_json_response(json, LudusaviOperation::QueryBackups).unwrap();
         assert!(result.success);
         assert!(!result.has_backups);
+        assert!(result.unknown_games.is_empty());
     }
 
     #[test]
@@ -292,6 +307,7 @@ mod tests {
             .as_ref()
             .unwrap()
             .contains("No response"));
+        assert!(result.unknown_games.is_empty());
     }
 
     #[test]
@@ -299,6 +315,7 @@ mod tests {
         let result = parse_json_response("   \n\t  ", LudusaviOperation::Backup).unwrap();
         assert!(!result.success);
         assert!(result.error_message.is_some());
+        assert!(result.unknown_games.is_empty());
     }
 
     #[test]
@@ -317,6 +334,25 @@ mod tests {
 
         let result = parse_json_response(json, LudusaviOperation::Backup).unwrap();
         assert!(!result.success);
+        assert!(result.unknown_games.is_empty());
+    }
+
+    #[test]
+    fn test_unknown_games_extracted_from_array() {
+        let json = r#"{
+            "errors": { "unknownGames": ["Game One", "Game Two", "Game Three"] },
+            "overall": { "processedGames": 0 },
+            "games": {}
+        }"#;
+
+        let result = parse_json_response(json, LudusaviOperation::Backup).unwrap();
+        assert!(!result.success);
+        assert_eq!(result.unknown_games.len(), 3);
+        assert!(result.unknown_games.contains(&"Game One".to_string()));
+        assert!(result.unknown_games.contains(&"Game Two".to_string()));
+        assert!(result.unknown_games.contains(&"Game Three".to_string()));
+        assert!(result.error_message.is_some());
+        assert!(result.error_message.as_ref().unwrap().contains("not found"));
     }
 
     #[test]
@@ -346,9 +382,11 @@ mod tests {
         // QueryBackups should check has_backups
         let result = parse_json_response(json, LudusaviOperation::QueryBackups).unwrap();
         assert!(result.has_backups);
+        assert!(result.unknown_games.is_empty());
 
         // Backup operation should NOT set has_backups (it's irrelevant)
         let result = parse_json_response(json, LudusaviOperation::Backup).unwrap();
         assert!(!result.has_backups);
+        assert!(result.unknown_games.is_empty());
     }
 }

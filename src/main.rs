@@ -13,6 +13,7 @@ mod image_cache;
 mod input;
 mod launcher;
 mod ludusavi;
+mod ludusavi_config;
 mod messages;
 mod model;
 mod mupen64plus;
@@ -37,6 +38,7 @@ mod ui_components;
 mod ui_ludusavi_settings_modal;
 mod ui_main_view;
 mod ui_modals;
+mod ui_save_path_modal;
 mod ui_settings_modal;
 mod ui_state;
 mod ui_system_info_modal;
@@ -44,6 +46,7 @@ mod ui_system_update_modal;
 mod ui_theme;
 mod updater;
 mod virtual_keyboard;
+mod wine_prefix_scanner;
 
 fn main() -> iced::Result {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {

@@ -17,6 +17,7 @@ tokio = { version = "1.49", features = ["rt", "rt-multi-thread", "time", "proces
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yml = "0.0.12"
 
 # Error Handling
 anyhow = "1.0"

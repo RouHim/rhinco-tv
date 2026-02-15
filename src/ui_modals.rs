@@ -11,10 +11,19 @@ pub fn render_context_menu<'a>(
     selected_index: usize,
     category: Category,
     ludusavi_available: bool,
+    unknown_games: &[String],
     scale: f32,
 ) -> Element<'a, Message> {
     let menu_items: Vec<&str> = match (category, ludusavi_available) {
         (Category::Apps, _) => vec!["Launch", "Remove Entry", "Quit Launcher", "Close"],
+        (Category::Games, true) if !unknown_games.is_empty() => vec![
+            "Launch",
+            "Backup Saves",
+            "Restore Saves",
+            "Configure Save Paths",
+            "Quit Launcher",
+            "Close",
+        ],
         (Category::Games, true) => vec![
             "Launch",
             "Backup Saves",

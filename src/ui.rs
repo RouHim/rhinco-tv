@@ -110,6 +110,7 @@ pub struct Launcher {
     launched_game_name: Option<String>,
     focused_game_backup_status: Option<bool>,
     last_queried_game: Option<String>,
+    last_unknown_games: Vec<String>,
 }
 
 impl Launcher {
@@ -184,6 +185,7 @@ impl Launcher {
             launched_game_name: None,
             focused_game_backup_status: None,
             last_queried_game: None,
+            last_unknown_games: Vec::new(),
         };
 
         // Check Ludusavi availability at startup (blocking is acceptable here)
@@ -418,21 +420,39 @@ impl Launcher {
                 self.ludusavi_operation_in_progress = false;
 
                 match result {
-                    Ok(_res) => {
-                        let (action, default_msg) = match operation.as_str() {
-                            "backup" => ("Backed up", "Backup completed"),
-                            "backup-with-cloud-sync" => {
-                                ("Backed up and synced", "Backup and sync completed")
-                            }
-                            "restore" => ("Restored", "Restore completed"),
-                            _ => return Task::none(),
-                        };
+                    Ok(res) => {
+                        if !res.unknown_games.is_empty() {
+                            self.last_unknown_games = res.unknown_games.clone();
 
-                        let toast_msg = game_name
-                            .map(|name| format!("{} {}", action, name))
-                            .unwrap_or_else(|| default_msg.to_string());
+                            let game_list = res.unknown_games.join(", ");
+                            let toast_msg = if res.unknown_games.len() == 1 {
+                                format!(
+                                    "Save paths not configured for {}. Open context menu to configure.",
+                                    game_list
+                                )
+                            } else {
+                                format!(
+                                    "Save paths not configured for: {}. Open context menu to configure.",
+                                    game_list
+                                )
+                            };
+                            self.toast.show(&toast_msg, ToastSeverity::Info);
+                        } else {
+                            let (action, default_msg) = match operation.as_str() {
+                                "backup" => ("Backed up", "Backup completed"),
+                                "backup-with-cloud-sync" => {
+                                    ("Backed up and synced", "Backup and sync completed")
+                                }
+                                "restore" => ("Restored", "Restore completed"),
+                                _ => return Task::none(),
+                            };
 
-                        self.toast.show(&toast_msg, ToastSeverity::Success);
+                            let toast_msg = game_name
+                                .map(|name| format!("{} {}", action, name))
+                                .unwrap_or_else(|| default_msg.to_string());
+
+                            self.toast.show(&toast_msg, ToastSeverity::Success);
+                        }
                     }
                     Err(e) => {
                         let error_msg = format!("Ludusavi operation failed: {}", e);
@@ -521,6 +541,125 @@ impl Launcher {
                         KeyboardOutput::None => {}
                     }
                 }
+                Task::none()
+            }
+
+            Message::OpenSavePathConfig {
+                game_name,
+                unknown_games: _,
+            } => {
+                if let Some(item) = self.games.get_selected() {
+                    let item_clone = item.clone();
+                    let game_name_clone = game_name.clone();
+                    Task::perform(
+                        async move {
+                            let prefixes =
+                                crate::wine_prefix_scanner::discover_wine_prefixes(&item_clone);
+                            let mut all_paths = Vec::new();
+                            for (prefix, _source) in prefixes {
+                                let paths =
+                                    crate::wine_prefix_scanner::scan_prefix_for_saves(&prefix);
+                                all_paths.extend(paths);
+                            }
+                            (game_name_clone, all_paths)
+                        },
+                        |(game, paths)| Message::SavePathsDiscovered {
+                            game_name: game,
+                            paths,
+                        },
+                    )
+                } else {
+                    self.modal = ModalState::SavePathConfig {
+                        game_name,
+                        suggested_paths: Vec::new(),
+                        selected_indices: std::collections::HashSet::new(),
+                        selected_button: 0,
+                        manual_path: String::new(),
+                        editing_manual: false,
+                    };
+                    Task::none()
+                }
+            }
+
+            Message::SavePathsDiscovered { game_name, paths } => {
+                use crate::ui_save_path_modal::SuggestedSavePathDisplay;
+                let display_paths: Vec<SuggestedSavePathDisplay> =
+                    paths.iter().map(|p| p.into()).collect();
+                self.modal = ModalState::SavePathConfig {
+                    game_name,
+                    suggested_paths: display_paths,
+                    selected_indices: std::collections::HashSet::new(),
+                    selected_button: 0,
+                    manual_path: String::new(),
+                    editing_manual: false,
+                };
+                Task::none()
+            }
+
+            Message::ConfirmSavePaths {
+                game_name,
+                selected_paths,
+            } => {
+                if selected_paths.is_empty() {
+                    self.toast.show("No paths selected", ToastSeverity::Error);
+                    return Task::none();
+                }
+
+                let entry = crate::ludusavi_config::CustomGameEntry {
+                    name: game_name.clone(),
+                    files: selected_paths.clone(),
+                    integration: "override".to_string(),
+                };
+
+                let game_name_clone = game_name.clone();
+
+                Task::perform(
+                    async move {
+                        let config_path = match crate::ludusavi_config::ludusavi_config_path() {
+                            Some(path) => path,
+                            None => {
+                                return Err("Could not locate Ludusavi config directory".to_string())
+                            }
+                        };
+
+                        crate::ludusavi_config::write_custom_game(&config_path, &entry)
+                            .map_err(|e| e.to_string())
+                    },
+                    move |result| Message::SavePathConfigWritten {
+                        game_name: game_name_clone,
+                        result,
+                    },
+                )
+            }
+
+            Message::SavePathConfigWritten { game_name, result } => {
+                match result {
+                    Ok(()) => {
+                        self.config
+                            .custom_save_configs
+                            .insert(game_name.clone(), Vec::new());
+                        if let Err(e) = save_config(&self.config) {
+                            error!("Failed to save config: {}", e);
+                        }
+
+                        self.modal = ModalState::None;
+                        self.toast.show(
+                            &format!("Save paths configured for {}", game_name),
+                            ToastSeverity::Success,
+                        );
+                    }
+                    Err(e) => {
+                        self.toast.show(
+                            &format!("Failed to write config: {}", e),
+                            ToastSeverity::Error,
+                        );
+                    }
+                }
+                Task::none()
+            }
+
+            Message::CloseSavePathConfig => {
+                self.modal = ModalState::None;
                 Task::none()
             }
 
@@ -1375,6 +1514,7 @@ impl Launcher {
                 *index,
                 self.category,
                 self.ludusavi_available,
+                &self.last_unknown_games,
                 scale,
             )),
             ModalState::AppPicker(state) => {
@@ -1427,6 +1567,21 @@ impl Launcher {
                     keyboard.as_ref(),
                 ))
             }
+            ModalState::SavePathConfig {
+                game_name,
+                suggested_paths,
+                selected_indices,
+                selected_button,
+                manual_path,
+                editing_manual,
+            } => Some(crate::ui_save_path_modal::render_save_path_modal(
+                game_name,
+                suggested_paths,
+                selected_indices,
+                *selected_button,
+                manual_path,
+                *editing_manual,
+            )),
             ModalState::None => None,
         }
     }
@@ -1540,6 +1695,9 @@ impl Launcher {
             ModalState::SystemInfo { .. } => Some(self.handle_system_info_navigation(action)),
             ModalState::AppNotFound { .. } => Some(self.handle_app_not_found_navigation(action)),
             ModalState::Auth(_) => Some(self.handle_auth_navigation(action)),
+            ModalState::SavePathConfig { .. } => {
+                Some(self.handle_save_path_modal_navigation(action))
+            }
             ModalState::None => None,
         }
     }
@@ -1735,8 +1893,9 @@ impl Launcher {
         };
 
         let max_index = match (self.category, self.ludusavi_available) {
-            (Category::Apps, _) => 3,      // 4 items: Launch, Remove Entry, Quit, Close
-            (Category::Games, true) => 4,  // 5 items: Launch, Backup, Restore, Quit, Close
+            (Category::Apps, _) => 3, // 4 items: Launch, Remove Entry, Quit, Close
+            (Category::Games, true) if !self.last_unknown_games.is_empty() => 5, // 6 items: Launch, Backup, Restore, Configure, Quit, Close
+            (Category::Games, true) => 4, // 5 items: Launch, Backup, Restore, Quit, Close
             (Category::Games, false) => 2, // 3 items: Launch, Quit, Close
             (Category::System, true) => 3, // 4 items: Launch, Settings, Quit, Close
             (Category::System, false) => 2, // 3 items: Launch, Quit, Close
@@ -1774,10 +1933,73 @@ impl Launcher {
                 self.set_modal(ModalState::None);
                 self.activate_selected()
             }
-            (Category::Games, true, 1) => self.close_modal_none(),
-            (Category::Games, true, 2) => self.close_modal_none(),
+            (Category::Games, true, 1) => {
+                // Backup Saves
+                if let Some(game) = self.games.get_selected() {
+                    let game_name = game.clone().name;
+                    self.ludusavi_operation_in_progress = true;
+                    self.close_modal();
+                    let operation = if self.config.auto_cloud_sync {
+                        crate::ludusavi::LudusaviOperation::BackupWithCloudSync
+                    } else {
+                        crate::ludusavi::LudusaviOperation::Backup
+                    };
+                    let operation_name = operation.operation_name().to_string();
+                    let game_name_clone = game_name.clone();
+                    Task::perform(
+                        async move {
+                            crate::ludusavi::execute_operation(&game_name_clone, operation).await
+                        },
+                        move |result| Message::LudusaviOperationCompleted {
+                            operation: operation_name,
+                            game_name: Some(game_name),
+                            result,
+                        },
+                    )
+                } else {
+                    self.close_modal_none()
+                }
+            }
+            (Category::Games, true, 2) => {
+                // Restore Saves
+                if let Some(game) = self.games.get_selected() {
+                    let game_name = game.clone().name;
+                    self.ludusavi_operation_in_progress = true;
+                    self.close_modal();
+                    let operation = crate::ludusavi::LudusaviOperation::Restore;
+                    let operation_name = operation.operation_name().to_string();
+                    let game_name_clone = game_name.clone();
+                    Task::perform(
+                        async move {
+                            crate::ludusavi::execute_operation(&game_name_clone, operation).await
+                        },
+                        move |result| Message::LudusaviOperationCompleted {
+                            operation: operation_name,
+                            game_name: Some(game_name),
+                            result,
+                        },
+                    )
+                } else {
+                    self.close_modal_none()
+                }
+            }
+            (Category::Games, true, 3) if !self.last_unknown_games.is_empty() => {
+                // Configure Save Paths - only when unknown games exist
+                if let Some(game) = self.games.get_selected() {
+                    let game_name = game.clone().name;
+                    let unknown_games = self.last_unknown_games.clone();
+                    self.close_modal();
+                    return self.update(Message::OpenSavePathConfig {
+                        game_name,
+                        unknown_games,
+                    });
+                }
+                self.close_modal_none()
+            }
             (Category::Games, true, 3) => self.exit_app(),
+            (Category::Games, true, 4) if !self.last_unknown_games.is_empty() => self.exit_app(),
             (Category::Games, true, 4) => self.close_modal_none(),
+            (Category::Games, true, 5) => self.close_modal_none(),
             (Category::Games, false, 0) => {
                 self.set_modal(ModalState::None);
                 self.activate_selected()
@@ -1838,6 +2060,111 @@ impl Launcher {
                 _ => Task::none(),
             },
             Action::Back => self.update(Message::CloseLudusaviSettings),
+            _ => Task::none(),
+        }
+    }
+
+    fn handle_save_path_modal_navigation(&mut self, action: Action) -> Task<Message> {
+        let (
+            game_name,
+            suggested_paths,
+            mut selected_indices,
+            mut selected_button,
+            manual_path,
+            editing_manual,
+        ) = match &self.modal {
+            ModalState::SavePathConfig {
+                game_name,
+                suggested_paths,
+                selected_indices,
+                selected_button,
+                manual_path,
+                editing_manual,
+            } => (
+                game_name.clone(),
+                suggested_paths.clone(),
+                selected_indices.clone(),
+                *selected_button,
+                manual_path.clone(),
+                *editing_manual,
+            ),
+            _ => return Task::none(),
+        };
+
+        let num_paths = suggested_paths.len();
+        let manual_index = num_paths;
+        let save_button_index = num_paths + 1;
+        let cancel_button_index = num_paths + 2;
+        let max_index = cancel_button_index;
+
+        match action {
+            Action::Up => {
+                selected_button = selected_button.saturating_sub(1);
+                self.set_modal(ModalState::SavePathConfig {
+                    game_name,
+                    suggested_paths,
+                    selected_indices,
+                    selected_button,
+                    manual_path,
+                    editing_manual,
+                });
+                Task::none()
+            }
+            Action::Down => {
+                selected_button = (selected_button + 1).min(max_index);
+                self.set_modal(ModalState::SavePathConfig {
+                    game_name,
+                    suggested_paths,
+                    selected_indices,
+                    selected_button,
+                    manual_path,
+                    editing_manual,
+                });
+                Task::none()
+            }
+            Action::Select => {
+                if selected_button < num_paths {
+                    if selected_indices.contains(&selected_button) {
+                        selected_indices.remove(&selected_button);
+                    } else {
+                        selected_indices.insert(selected_button);
+                    }
+                    self.set_modal(ModalState::SavePathConfig {
+                        game_name,
+                        suggested_paths,
+                        selected_indices,
+                        selected_button,
+                        manual_path,
+                        editing_manual,
+                    });
+                    Task::none()
+                } else if selected_button == manual_index {
+                    Task::none()
+                } else if selected_button == save_button_index {
+                    let mut selected_paths: Vec<String> = selected_indices
+                        .iter()
+                        .filter_map(|&i| {
+                            suggested_paths
+                                .get(i)
+                                .map(|p| p.ludusavi_placeholder.clone())
+                        })
+                        .collect();
+
+                    if !manual_path.is_empty() {
+                        selected_paths.push(manual_path);
+                    }
+
+                    self.update(Message::ConfirmSavePaths {
+                        game_name: game_name.clone(),
+                        selected_paths,
+                    })
+                } else if selected_button == cancel_button_index {
+                    self.update(Message::CloseSavePathConfig)
+                } else {
+                    Task::none()
+                }
+            }
+            Action::Back => self.update(Message::CloseSavePathConfig),
             _ => Task::none(),
         }
     }

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::auth_flow::AuthFlow;
@@ -5,6 +6,7 @@ use crate::model::Category;
 use crate::system_info::GamingSystemInfo;
 use crate::system_update_state::SystemUpdateState;
 use crate::ui_app_picker::AppPickerState;
+use crate::ui_save_path_modal::SuggestedSavePathDisplay;
 use crate::updater::ReleaseInfo;
 use crate::virtual_keyboard::VirtualKeyboard;
 
@@ -40,6 +42,14 @@ pub enum ModalState {
         editing_api_key: bool,
         keyboard: Option<VirtualKeyboard>,
         api_key_buffer: String,
+    },
+    SavePathConfig {
+        game_name: String,
+        suggested_paths: Vec<SuggestedSavePathDisplay>,
+        selected_indices: HashSet<usize>,
+        selected_button: usize,
+        manual_path: String,
+        editing_manual: bool,
     },
 }
 

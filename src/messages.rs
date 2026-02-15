@@ -15,6 +15,7 @@ use crate::system_update_state::SystemUpdateProgress;
 use crate::toast::ToastSeverity;
 use crate::updater::ReleaseInfo;
 use crate::virtual_keyboard::KeyboardMessage;
+use crate::wine_prefix_scanner::SuggestedSavePath;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -89,5 +90,24 @@ pub enum Message {
     CloseSettings,
     UpdateSteamGridDbApiKey(String),
     SettingsKeyboard(KeyboardMessage),
+    // Save path config messages
+    #[allow(dead_code)]
+    OpenSavePathConfig {
+        game_name: String,
+        unknown_games: Vec<String>,
+    },
+    SavePathsDiscovered {
+        game_name: String,
+        paths: Vec<SuggestedSavePath>,
+    },
+    ConfirmSavePaths {
+        game_name: String,
+        selected_paths: Vec<String>,
+    },
+    SavePathConfigWritten {
+        game_name: String,
+        result: Result<(), String>,
+    },
+    CloseSavePathConfig,
     None,
 }

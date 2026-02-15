@@ -18,6 +18,8 @@ pub struct AppConfig {
     pub auto_backup: bool,
     #[serde(default)]
     pub auto_cloud_sync: bool,
+    #[serde(default)]
+    pub custom_save_configs: HashMap<String, Vec<String>>,
 }
 
 /// Returns the project directories for this application.
@@ -74,6 +76,7 @@ mod tests {
             game_launch_history: game_history,
             auto_backup: false,
             auto_cloud_sync: false,
+            custom_save_configs: HashMap::new(),
         };
 
         let json = serde_json::to_string(&config).unwrap();
@@ -115,6 +118,7 @@ mod tests {
             game_launch_history: HashMap::new(),
             auto_backup: true,
             auto_cloud_sync: true,
+            custom_save_configs: HashMap::new(),
         };
 
         let json = serde_json::to_string(&config).unwrap();
@@ -122,5 +126,54 @@ mod tests {
 
         assert!(loaded.auto_backup);
         assert!(loaded.auto_cloud_sync);
+    }
+
+    #[test]
+    fn test_custom_save_configs_default_empty() {
+        let config = AppConfig::default();
+        assert!(config.custom_save_configs.is_empty());
+    }
+
+    #[test]
+    fn test_custom_save_configs_serialization_roundtrip() {
+        let mut custom_save_configs = HashMap::new();
+        custom_save_configs.insert(
+            "Game1".to_string(),
+            vec!["/path/to/save1".to_string(), "/path/to/save2".to_string()],
+        );
+        custom_save_configs.insert("Game2".to_string(), vec!["/another/path".to_string()]);
+
+        let config = AppConfig {
+            apps: vec![],
+            steamgriddb_api_key: None,
+            game_launch_history: HashMap::new(),
+            auto_backup: false,
+            auto_cloud_sync: false,
+            custom_save_configs: custom_save_configs.clone(),
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let loaded: AppConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(loaded.custom_save_configs, custom_save_configs);
+        assert_eq!(
+            loaded.custom_save_configs.get("Game1"),
+            Some(&vec![
+                "/path/to/save1".to_string(),
+                "/path/to/save2".to_string()
+            ])
+        );
+        assert_eq!(
+            loaded.custom_save_configs.get("Game2"),
+            Some(&vec!["/another/path".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_json_missing_custom_save_configs_deserializes_default() {
+        // JSON without custom_save_configs field (backward compatibility)
+        let json = r#"{"apps":[],"steamgriddb_api_key":null,"game_launch_history":{},"auto_backup":false,"auto_cloud_sync":false}"#;
+        let config: AppConfig = serde_json::from_str(json).unwrap();
+        assert!(config.custom_save_configs.is_empty());
     }
 }
