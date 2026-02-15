@@ -2,6 +2,7 @@ use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
+use tracing::warn;
 
 const LUDUSAVI_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -101,13 +102,50 @@ pub async fn execute_operation(
         .map_err(|_| LudusaviError::Timeout)?
         .map_err(|e| LudusaviError::CommandFailed(e.to_string()))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LudusaviError::CommandFailed(stderr.to_string()));
+    process_command_output(
+        output.status.success(),
+        &output.stdout,
+        &output.stderr,
+        operation,
+    )
+}
+
+fn process_command_output(
+    exit_success: bool,
+    stdout: &[u8],
+    stderr: &[u8],
+    operation: LudusaviOperation,
+) -> Result<LudusaviResult, LudusaviError> {
+    let stdout_str = String::from_utf8_lossy(stdout);
+    let stderr_str = String::from_utf8_lossy(stderr);
+
+    // Log stderr when present on non-zero exit
+    if !exit_success && !stderr_str.trim().is_empty() {
+        warn!(
+            "Ludusavi exited with non-zero status. stderr: {}",
+            stderr_str.trim()
+        );
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_json_response(&stdout, operation)
+    // If stdout is empty and exit was non-zero, it's a genuine failure
+    if stdout_str.trim().is_empty() && !exit_success {
+        return Err(LudusaviError::CommandFailed(stderr_str.to_string()));
+    }
+
+    // Try parsing stdout — works for both success and "known failure" cases (unknown games)
+    match parse_json_response(&stdout_str, operation) {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            if !exit_success {
+                // Stdout wasn't parseable AND exit was non-zero → genuine command failure
+                // Use stderr (human-readable) rather than parse error
+                Err(LudusaviError::CommandFailed(stderr_str.to_string()))
+            } else {
+                // Zero exit but bad JSON → propagate parse error
+                Err(e)
+            }
+        }
+    }
 }
 
 fn parse_json_response(
@@ -388,5 +426,83 @@ mod tests {
         let result = parse_json_response(json, LudusaviOperation::Backup).unwrap();
         assert!(!result.has_backups);
         assert!(result.unknown_games.is_empty());
+    }
+
+    #[test]
+    fn test_process_output_nonzero_exit_with_valid_unknown_games_json() {
+        let json = r#"{"errors":{"unknownGames":["Need For Speed Underground 2"]},"overall":{"processedGames":0},"games":{}}"#;
+        let stderr = "No info for these games:\n  - Need For Speed Underground 2";
+
+        let result = process_command_output(
+            false,
+            json.as_bytes(),
+            stderr.as_bytes(),
+            LudusaviOperation::Backup,
+        )
+        .unwrap();
+
+        assert!(!result.success);
+        assert_eq!(result.unknown_games.len(), 1);
+        assert!(result
+            .unknown_games
+            .contains(&"Need For Speed Underground 2".to_string()));
+    }
+
+    #[test]
+    fn test_process_output_nonzero_exit_with_empty_stdout() {
+        let result = process_command_output(
+            false,
+            b"",
+            b"Some error occurred",
+            LudusaviOperation::Backup,
+        );
+
+        assert!(matches!(result, Err(LudusaviError::CommandFailed(_))));
+        if let Err(LudusaviError::CommandFailed(msg)) = result {
+            assert!(msg.contains("Some error occurred"));
+        }
+    }
+
+    #[test]
+    fn test_process_output_nonzero_exit_with_garbage_stdout() {
+        let result = process_command_output(
+            false,
+            b"not valid json at all",
+            b"Process crashed",
+            LudusaviOperation::Backup,
+        );
+
+        // Should return CommandFailed (stderr), NOT ParseError
+        assert!(matches!(result, Err(LudusaviError::CommandFailed(_))));
+        if let Err(LudusaviError::CommandFailed(msg)) = result {
+            assert!(msg.contains("Process crashed"));
+        }
+    }
+
+    #[test]
+    fn test_process_output_nonzero_exit_with_some_games_failed() {
+        let json =
+            r#"{"errors":{"someGamesFailed":true},"overall":{"processedGames":0},"games":{}}"#;
+
+        let result = process_command_output(
+            false,
+            json.as_bytes(),
+            b"Some games failed",
+            LudusaviOperation::Backup,
+        )
+        .unwrap();
+
+        assert!(!result.success);
+        assert!(result.unknown_games.is_empty());
+    }
+
+    #[test]
+    fn test_process_output_zero_exit_still_works() {
+        let json = r#"{"errors":{"someGamesFailed":false},"overall":{"processedGames":1},"games":{"Test":{}}}"#;
+
+        let result =
+            process_command_output(true, json.as_bytes(), b"", LudusaviOperation::Backup).unwrap();
+
+        assert!(result.success);
     }
 }
