@@ -3924,7 +3924,7 @@ dependencies = [
 
 [[package]]
 name = "rhinco-tv"
-version = "2.9.1"
+version = "2.9.2"
 dependencies = [
  "anyhow",
  "chrono",

@@ -1,3 +1,10 @@
+## [2.9.2](https://github.com/RouHim/rhinco-tv/compare/v2.9.1...v2.9.2) (2026-02-15)
+
+
+### Bug Fixes
+
+* **ludusavi:** parse stdout on non-zero exit to capture unknown games ([66df350](https://github.com/RouHim/rhinco-tv/commit/66df35075e3e217e1f6d3812c24f7d68d904c024))
+
 ## [2.9.1](https://github.com/RouHim/rhinco-tv/compare/v2.9.0...v2.9.1) (2026-02-13)
 
 # [2.9.0](https://github.com/RouHim/rhinco-tv/compare/v2.8.0...v2.9.0) (2026-02-13)
