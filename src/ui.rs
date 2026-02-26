@@ -2970,4 +2970,82 @@ mod tests {
             panic!("Expected Settings modal");
         }
     }
+
+    #[test]
+    fn test_spinner_tick_advances_for_progress_and_scanning_modals() {
+        let (mut launcher, _) = Launcher::new();
+
+        launcher.set_modal(ModalState::LudusaviProgress {
+            operation_name: "backup".to_string(),
+            game_name: "Game A".to_string(),
+            spinner_tick: 0,
+        });
+        let _ = launcher.update(Message::SpinnerTick);
+        match &launcher.modal {
+            ModalState::LudusaviProgress { spinner_tick, .. } => assert_eq!(*spinner_tick, 1),
+            _ => panic!("Expected LudusaviProgress modal"),
+        }
+
+        launcher.set_modal(ModalState::SavePathScanning {
+            game_name: "Game B".to_string(),
+            spinner_tick: 3,
+        });
+        let _ = launcher.update(Message::SpinnerTick);
+        match &launcher.modal {
+            ModalState::SavePathScanning { spinner_tick, .. } => assert_eq!(*spinner_tick, 0),
+            _ => panic!("Expected SavePathScanning modal"),
+        }
+    }
+
+    #[test]
+    fn test_ludusavi_operation_completed_dismisses_progress_modal() {
+        let (mut launcher, _) = Launcher::new();
+        launcher.ludusavi_operation_in_progress = true;
+        launcher.set_modal(ModalState::LudusaviProgress {
+            operation_name: "backup".to_string(),
+            game_name: "Game A".to_string(),
+            spinner_tick: 0,
+        });
+
+        let _ = launcher.update(Message::LudusaviOperationCompleted {
+            operation: "backup".to_string(),
+            game_name: Some("Game A".to_string()),
+            result: Ok(crate::ludusavi::LudusaviResult {
+                success: true,
+                games_processed: 1,
+                has_backups: false,
+                error_message: None,
+                unknown_games: Vec::new(),
+            }),
+        });
+
+        assert!(!launcher.ludusavi_operation_in_progress);
+        assert!(matches!(launcher.modal, ModalState::None));
+    }
+
+    #[test]
+    fn test_save_paths_discovered_transitions_to_save_path_config() {
+        let (mut launcher, _) = Launcher::new();
+        launcher.set_modal(ModalState::SavePathScanning {
+            game_name: "Game C".to_string(),
+            spinner_tick: 2,
+        });
+
+        let _ = launcher.update(Message::SavePathsDiscovered {
+            game_name: "Game C".to_string(),
+            paths: Vec::new(),
+        });
+
+        match &launcher.modal {
+            ModalState::SavePathConfig {
+                game_name,
+                suggested_paths,
+                ..
+            } => {
+                assert_eq!(game_name, "Game C");
+                assert!(suggested_paths.is_empty());
+            }
+            _ => panic!("Expected SavePathConfig modal"),
+        }
+    }
 }
