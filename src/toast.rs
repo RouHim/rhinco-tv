@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local};
-use iced::widget::{container, text, Container};
+use iced::widget::{container, text, Column, Container};
 use iced::{Color, Element, Length};
 
 use crate::messages::Message;
@@ -87,7 +87,8 @@ impl Toast {
             } => {
                 let bg_color = severity.color();
 
-                Container::new(
+                // Inner container: styled toast box with text
+                let inner = Container::new(
                     text(message)
                         .size(scaled(BASE_FONT_MEDIUM, scale))
                         .color(COLOR_TEXT_BRIGHT),
@@ -104,9 +105,22 @@ impl Toast {
                     ..Default::default()
                 })
                 .width(Length::Shrink)
-                .height(Length::Shrink)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
+                .height(Length::Shrink);
+
+                // Outer container: positioning layer at bottom-center
+                Container::new(
+                    Column::new()
+                        .push(iced::widget::Space::new().height(Length::Fill))
+                        .push(inner)
+                        .push(iced::widget::Space::new().height(scaled(40.0, scale)))
+                        .align_x(iced::alignment::Horizontal::Center),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Color::TRANSPARENT.into()),
+                    ..Default::default()
+                })
                 .into()
             }
         }
