@@ -565,14 +565,29 @@ impl Launcher {
                     });
                     Task::perform(
                         async move {
+                            let steam_appid_ref = item_clone.steam_appid.as_deref();
                             let prefixes =
                                 crate::wine_prefix_scanner::discover_wine_prefixes(&item_clone);
                             let mut all_paths = Vec::new();
-                            for (prefix, _source) in prefixes {
-                                let paths =
-                                    crate::wine_prefix_scanner::scan_prefix_for_saves(&prefix);
+                            for (prefix, _source) in &prefixes {
+                                let paths = crate::save_path_detector::detect_save_paths(
+                                    &game_name_clone,
+                                    steam_appid_ref,
+                                    prefix,
+                                );
                                 all_paths.extend(paths);
                             }
+                            // If no prefixes found, still try detection for manifest/cloud/heroic results
+                            if prefixes.is_empty() {
+                                let paths = crate::save_path_detector::detect_save_paths(
+                                    &game_name_clone,
+                                    steam_appid_ref,
+                                    std::path::Path::new(""),
+                                );
+                                all_paths.extend(paths);
+                            }
+                            // Final dedup across all prefix results
+                            let all_paths = crate::save_path_detector::deduplicate_paths(all_paths);
                             (game_name_clone, all_paths)
                         },
                         |(game, paths)| Message::SavePathsDiscovered {
@@ -586,8 +601,6 @@ impl Launcher {
                         suggested_paths: Vec::new(),
                         selected_indices: std::collections::HashSet::new(),
                         selected_button: 0,
-                        manual_path: String::new(),
-                        editing_manual: false,
                     };
                     Task::none()
                 }
@@ -597,13 +610,17 @@ impl Launcher {
                 use crate::ui_save_path_modal::SuggestedSavePathDisplay;
                 let display_paths: Vec<SuggestedSavePathDisplay> =
                     paths.iter().map(|p| p.into()).collect();
+                let selected_indices: std::collections::HashSet<usize> = display_paths
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| p.exists && !p.is_empty)
+                    .map(|(i, _)| i)
+                    .collect();
                 self.modal = ModalState::SavePathConfig {
                     game_name,
                     suggested_paths: display_paths,
-                    selected_indices: std::collections::HashSet::new(),
+                    selected_indices,
                     selected_button: 0,
-                    manual_path: String::new(),
-                    editing_manual: false,
                 };
                 Task::none()
             }
@@ -1591,15 +1608,11 @@ impl Launcher {
                 suggested_paths,
                 selected_indices,
                 selected_button,
-                manual_path,
-                editing_manual,
             } => Some(crate::ui_save_path_modal::render_save_path_modal(
                 game_name,
                 suggested_paths,
                 selected_indices,
                 *selected_button,
-                manual_path,
-                *editing_manual,
                 scale,
             )),
             ModalState::None => None,
@@ -2101,36 +2114,25 @@ impl Launcher {
     }
 
     fn handle_save_path_modal_navigation(&mut self, action: Action) -> Task<Message> {
-        let (
-            game_name,
-            suggested_paths,
-            mut selected_indices,
-            mut selected_button,
-            manual_path,
-            editing_manual,
-        ) = match &self.modal {
-            ModalState::SavePathConfig {
-                game_name,
-                suggested_paths,
-                selected_indices,
-                selected_button,
-                manual_path,
-                editing_manual,
-            } => (
-                game_name.clone(),
-                suggested_paths.clone(),
-                selected_indices.clone(),
-                *selected_button,
-                manual_path.clone(),
-                *editing_manual,
-            ),
-            _ => return Task::none(),
-        };
+        let (game_name, suggested_paths, mut selected_indices, mut selected_button) =
+            match &self.modal {
+                ModalState::SavePathConfig {
+                    game_name,
+                    suggested_paths,
+                    selected_indices,
+                    selected_button,
+                } => (
+                    game_name.clone(),
+                    suggested_paths.clone(),
+                    selected_indices.clone(),
+                    *selected_button,
+                ),
+                _ => return Task::none(),
+            };
 
         let num_paths = suggested_paths.len();
-        let manual_index = num_paths;
-        let save_button_index = num_paths + 1;
-        let cancel_button_index = num_paths + 2;
+        let save_button_index = num_paths;
+        let cancel_button_index = num_paths + 1;
         let max_index = cancel_button_index;
 
         match action {
@@ -2141,8 +2143,6 @@ impl Launcher {
                     suggested_paths,
                     selected_indices,
                     selected_button,
-                    manual_path,
-                    editing_manual,
                 });
                 Task::none()
             }
@@ -2153,8 +2153,6 @@ impl Launcher {
                     suggested_paths,
                     selected_indices,
                     selected_button,
-                    manual_path,
-                    editing_manual,
                 });
                 Task::none()
             }
@@ -2170,14 +2168,10 @@ impl Launcher {
                         suggested_paths,
                         selected_indices,
                         selected_button,
-                        manual_path,
-                        editing_manual,
                     });
                     Task::none()
-                } else if selected_button == manual_index {
-                    Task::none()
                 } else if selected_button == save_button_index {
-                    let mut selected_paths: Vec<String> = selected_indices
+                    let selected_paths: Vec<String> = selected_indices
                         .iter()
                         .filter_map(|&i| {
                             suggested_paths
@@ -2185,10 +2179,6 @@ impl Launcher {
                                 .map(|p| p.ludusavi_placeholder.clone())
                         })
                         .collect();
-
-                    if !manual_path.is_empty() {
-                        selected_paths.push(manual_path);
-                    }
 
                     self.update(Message::ConfirmSavePaths {
                         game_name: game_name.clone(),
