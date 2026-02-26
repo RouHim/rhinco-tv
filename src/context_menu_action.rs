@@ -105,6 +105,17 @@ mod tests {
     }
 
     #[test]
+    fn test_configure_save_paths_always_present_for_games_with_ludusavi() {
+        let items = context_menu_items(Category::Games, true);
+        assert!(
+            items
+                .iter()
+                .any(|(_, action)| *action == ContextMenuAction::ConfigureSavePaths),
+            "ConfigureSavePaths must always be present in Games menu when ludusavi is available"
+        );
+    }
+
+    #[test]
     fn test_context_menu_items_for_games_without_ludusavi() {
         let items = context_menu_items(Category::Games, false);
 

@@ -665,6 +665,8 @@ impl Launcher {
             }
 
             Message::None => Task::none(),
+            Message::SpinnerTick => Task::none(),
+            Message::ConfirmRestore { .. } => Task::none(),
         }
     }
 
@@ -1584,6 +1586,9 @@ impl Launcher {
                 scale,
             )),
             ModalState::None => None,
+            ModalState::RestoreConfirm { .. } => None,
+            ModalState::LudusaviProgress { .. } => None,
+            ModalState::SavePathScanning { .. } => None,
         }
     }
 
@@ -1700,6 +1705,9 @@ impl Launcher {
                 Some(self.handle_save_path_modal_navigation(action))
             }
             ModalState::None => None,
+            ModalState::RestoreConfirm { .. } => None,
+            ModalState::LudusaviProgress { .. } => None,
+            ModalState::SavePathScanning { .. } => None,
         }
     }
 
@@ -1917,9 +1925,6 @@ impl Launcher {
         let mut menu_items = context_menu_items(self.category, self.ludusavi_available);
 
         if self.category == Category::Games && self.ludusavi_available {
-            if self.last_unknown_games.is_empty() {
-                menu_items.retain(|(_, action)| *action != ContextMenuAction::ConfigureSavePaths);
-            }
             menu_items.retain(|(_, action)| *action != ContextMenuAction::OpenSaveSettings);
         }
 
@@ -1999,7 +2004,7 @@ impl Launcher {
                 }
                 self.close_modal_none()
             }
-            ContextMenuAction::OpenSaveSettings => self.close_modal_none(),
+            ContextMenuAction::OpenSaveSettings => self.update(Message::OpenLudusaviSettings),
             ContextMenuAction::QuitLauncher => self.exit_app(),
             ContextMenuAction::CloseMenu => self.close_modal_none(),
         }
