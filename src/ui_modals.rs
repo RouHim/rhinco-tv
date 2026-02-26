@@ -3,43 +3,20 @@ use iced::widget::{Column, Container, Row, Scrollable, Text};
 use iced::{Color, Element, Length};
 use iced_anim::{spring::Motion, AnimationBuilder};
 
+use crate::context_menu_action::ContextMenuAction;
 use crate::messages::Message;
-use crate::model::Category;
 use crate::ui_theme::*;
 
 pub fn render_context_menu<'a>(
     selected_index: usize,
-    category: Category,
-    ludusavi_available: bool,
-    unknown_games: &[String],
+    menu_items: Vec<(String, ContextMenuAction)>,
     scale: f32,
 ) -> Element<'a, Message> {
-    let menu_items: Vec<&str> = match (category, ludusavi_available) {
-        (Category::Apps, _) => vec!["Launch", "Remove Entry", "Quit Launcher", "Close"],
-        (Category::Games, true) if !unknown_games.is_empty() => vec![
-            "Launch",
-            "Backup Saves",
-            "Restore Saves",
-            "Configure Save Paths",
-            "Quit Launcher",
-            "Close",
-        ],
-        (Category::Games, true) => vec![
-            "Launch",
-            "Backup Saves",
-            "Restore Saves",
-            "Quit Launcher",
-            "Close",
-        ],
-        (Category::Games, false) => vec!["Launch", "Quit Launcher", "Close"],
-        (Category::System, true) => vec!["Launch", "Save Sync Settings", "Quit Launcher", "Close"],
-        (Category::System, false) => vec!["Launch", "Quit Launcher", "Close"],
-    };
     let mut column = Column::new()
         .spacing(scaled(BASE_PADDING_SMALL, scale))
         .padding(scaled(BASE_PADDING_MEDIUM, scale));
 
-    for (i, item) in menu_items.iter().enumerate() {
+    for (i, (item, _action)) in menu_items.into_iter().enumerate() {
         let is_selected = i == selected_index;
         let target_bg = if is_selected {
             COLOR_ACCENT
@@ -52,7 +29,7 @@ pub fn render_context_menu<'a>(
             COLOR_TEXT_MUTED
         };
 
-        let item_text = item.to_string();
+        let item_text = item;
 
         let animated_item: Element<'a, Message> =
             AnimationBuilder::new((target_bg, target_text), move |(bg_color, txt_color)| {

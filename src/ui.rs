@@ -28,6 +28,7 @@ use crate::assets::get_default_icon;
 use crate::auth_dialog::render_auth_dialog;
 use crate::auth_flow::{AuthFlow, AuthFlowState};
 use crate::category_list::CategoryList;
+use crate::context_menu_action::{context_menu_items, ContextMenuAction};
 use crate::desktop_apps::{scan_desktop_apps, DesktopApp};
 use crate::focus_manager::{monitor_app_process, MonitorTarget};
 use crate::game_image_fetcher::GameImageFetcher;
@@ -1510,13 +1511,10 @@ impl Launcher {
     fn render_modal_layer(&self) -> Option<Element<'_, Message>> {
         let scale = self.ui_scale;
         match &self.modal {
-            ModalState::ContextMenu { index } => Some(render_context_menu(
-                *index,
-                self.category,
-                self.ludusavi_available,
-                &self.last_unknown_games,
-                scale,
-            )),
+            ModalState::ContextMenu { index } => {
+                let menu_items = self.current_context_menu_items();
+                Some(render_context_menu(*index, menu_items, scale))
+            }
             ModalState::AppPicker(state) => {
                 Some(render_app_picker(state, &self.available_apps, scale))
             }
@@ -1892,20 +1890,19 @@ impl Launcher {
             _ => return Task::none(),
         };
 
-        let max_index = match (self.category, self.ludusavi_available) {
-            (Category::Apps, _) => 3, // 4 items: Launch, Remove Entry, Quit, Close
-            (Category::Games, true) if !self.last_unknown_games.is_empty() => 5, // 6 items: Launch, Backup, Restore, Configure, Quit, Close
-            (Category::Games, true) => 4, // 5 items: Launch, Backup, Restore, Quit, Close
-            (Category::Games, false) => 2, // 3 items: Launch, Quit, Close
-            (Category::System, true) => 3, // 4 items: Launch, Settings, Quit, Close
-            (Category::System, false) => 2, // 3 items: Launch, Quit, Close
-        };
+        let menu_items = self.current_context_menu_items();
+        let max_index = menu_items.len().saturating_sub(1);
 
         match action {
             Action::Up => index = index.saturating_sub(1),
             Action::Down => index = (index + 1).min(max_index),
             Action::Back | Action::ContextMenu => return self.close_modal_none(),
-            Action::Select => return self.execute_context_menu_action(index),
+            Action::Select => {
+                if let Some((_, selected_action)) = menu_items.get(index) {
+                    return self.execute_context_menu_action(*selected_action);
+                }
+                return Task::none();
+            }
             _ => {}
         }
 
@@ -1913,28 +1910,33 @@ impl Launcher {
         Task::none()
     }
 
-    /// Executes the selected context menu action based on category and index.
-    fn execute_context_menu_action(&mut self, index: usize) -> Task<Message> {
-        match (self.category, self.ludusavi_available, index) {
-            (Category::Apps, _, 0) => {
+    fn current_context_menu_items(&self) -> Vec<(String, ContextMenuAction)> {
+        let mut menu_items = context_menu_items(self.category, self.ludusavi_available);
+
+        if self.category == Category::Games && self.ludusavi_available {
+            if self.last_unknown_games.is_empty() {
+                menu_items.retain(|(_, action)| *action != ContextMenuAction::ConfigureSavePaths);
+            }
+            menu_items.retain(|(_, action)| *action != ContextMenuAction::OpenSaveSettings);
+        }
+
+        menu_items
+    }
+
+    fn execute_context_menu_action(&mut self, action: ContextMenuAction) -> Task<Message> {
+        match action {
+            ContextMenuAction::Launch => {
                 self.set_modal(ModalState::None);
                 self.activate_selected()
             }
-            (Category::Apps, _, 1) => {
+            ContextMenuAction::RemoveApp => {
                 self.close_modal();
                 if let Some(removed) = self.apps.remove_selected() {
                     self.save_apps_config("Removed", "removing", &removed.name);
                 }
                 Task::none()
             }
-            (Category::Apps, _, 2) => self.exit_app(),
-            (Category::Apps, _, 3) => self.close_modal_none(),
-            (Category::Games, true, 0) => {
-                self.set_modal(ModalState::None);
-                self.activate_selected()
-            }
-            (Category::Games, true, 1) => {
-                // Backup Saves
+            ContextMenuAction::BackupSaves => {
                 if let Some(game) = self.games.get_selected() {
                     let game_name = game.clone().name;
                     self.ludusavi_operation_in_progress = true;
@@ -1960,8 +1962,7 @@ impl Launcher {
                     self.close_modal_none()
                 }
             }
-            (Category::Games, true, 2) => {
-                // Restore Saves
+            ContextMenuAction::RestoreSaves => {
                 if let Some(game) = self.games.get_selected() {
                     let game_name = game.clone().name;
                     self.ludusavi_operation_in_progress = true;
@@ -1983,8 +1984,7 @@ impl Launcher {
                     self.close_modal_none()
                 }
             }
-            (Category::Games, true, 3) if !self.last_unknown_games.is_empty() => {
-                // Configure Save Paths - only when unknown games exist
+            ContextMenuAction::ConfigureSavePaths => {
                 if let Some(game) = self.games.get_selected() {
                     let game_name = game.clone().name;
                     let unknown_games = self.last_unknown_games.clone();
@@ -1996,30 +1996,9 @@ impl Launcher {
                 }
                 self.close_modal_none()
             }
-            (Category::Games, true, 3) => self.exit_app(),
-            (Category::Games, true, 4) if !self.last_unknown_games.is_empty() => self.exit_app(),
-            (Category::Games, true, 4) => self.close_modal_none(),
-            (Category::Games, true, 5) => self.close_modal_none(),
-            (Category::Games, false, 0) => {
-                self.set_modal(ModalState::None);
-                self.activate_selected()
-            }
-            (Category::Games, false, 1) => self.exit_app(),
-            (Category::Games, false, 2) => self.close_modal_none(),
-            (Category::System, true, 0) => {
-                self.set_modal(ModalState::None);
-                self.activate_selected()
-            }
-            (Category::System, true, 1) => self.close_modal_none(),
-            (Category::System, true, 2) => self.exit_app(),
-            (Category::System, true, 3) => self.close_modal_none(),
-            (Category::System, false, 0) => {
-                self.set_modal(ModalState::None);
-                self.activate_selected()
-            }
-            (Category::System, false, 1) => self.exit_app(),
-            (Category::System, false, 2) => self.close_modal_none(),
-            _ => Task::none(),
+            ContextMenuAction::OpenSaveSettings => self.close_modal_none(),
+            ContextMenuAction::QuitLauncher => self.exit_app(),
+            ContextMenuAction::CloseMenu => self.close_modal_none(),
         }
     }
 

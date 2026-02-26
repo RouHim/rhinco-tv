@@ -3,6 +3,7 @@ mod auth_dialog;
 mod auth_flow;
 mod autostart;
 mod category_list;
+mod context_menu_action;
 mod desktop_apps;
 mod focus_manager;
 mod game_image_fetcher;
