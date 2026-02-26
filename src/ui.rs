@@ -1627,8 +1627,7 @@ impl Launcher {
             ModalState::SavePathScanning {
                 game_name,
                 spinner_tick,
-            } => Some(render_ludusavi_progress_modal(
-                "Scanning save paths",
+            } => Some(crate::ui_save_path_modal::render_save_path_scanning_modal(
                 game_name,
                 *spinner_tick,
                 scale,
@@ -1764,7 +1763,7 @@ impl Launcher {
                 Some(self.handle_ludusavi_progress_navigation(action))
             }
             ModalState::SavePathScanning { .. } => {
-                Some(self.handle_ludusavi_progress_navigation(action))
+                Some(self.handle_save_path_scanning_navigation(action))
             }
         }
     }
@@ -2475,6 +2474,10 @@ impl Launcher {
             | Action::PrevCategory
             | Action::Quit => Task::none(),
         }
+    }
+
+    fn handle_save_path_scanning_navigation(&mut self, _action: Action) -> Task<Message> {
+        Task::none()
     }
 
     fn handle_system_update_navigation(&mut self, action: Action) -> Task<Message> {
