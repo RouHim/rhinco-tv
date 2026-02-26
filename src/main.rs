@@ -24,6 +24,7 @@ mod osk;
 mod searxng;
 mod sleep_inhibit;
 mod snes9x;
+mod steam_cloud_paths;
 mod steamgriddb;
 mod storage;
 mod sudo_askpass;
