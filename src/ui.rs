@@ -654,7 +654,7 @@ impl Launcher {
                             error!("Failed to save config: {}", e);
                         }
 
-                        self.modal = ModalState::None;
+                        self.close_modal();
                         self.toast.show(
                             &format!("Save paths configured for {}", game_name),
                             ToastSeverity::Success,
@@ -670,10 +670,7 @@ impl Launcher {
                 Task::none()
             }
 
-            Message::CloseSavePathConfig => {
-                self.modal = ModalState::None;
-                Task::none()
-            }
+            Message::CloseSavePathConfig => self.close_modal_none(),
 
             Message::None => Task::none(),
             Message::SpinnerTick => {
@@ -2137,7 +2134,7 @@ impl Launcher {
         let max_index = cancel_button_index;
 
         match action {
-            Action::Up => {
+            Action::Up | Action::Left => {
                 selected_button = selected_button.saturating_sub(1);
                 self.set_modal(ModalState::SavePathConfig {
                     game_name,
@@ -2149,7 +2146,7 @@ impl Launcher {
                 });
                 Task::none()
             }
-            Action::Down => {
+            Action::Down | Action::Right => {
                 selected_button = (selected_button + 1).min(max_index);
                 self.set_modal(ModalState::SavePathConfig {
                     game_name,
