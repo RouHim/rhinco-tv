@@ -1,3 +1,20 @@
+# [2.10.0](https://github.com/RouHim/rhinco-tv/compare/v2.9.2...v2.10.0) (2026-02-26)
+
+
+### Bug Fixes
+
+* **ui:** make Configure Save Paths always visible and fix Save Sync Settings ([b7e3453](https://github.com/RouHim/rhinco-tv/commit/b7e3453ffc1e92e4929f18dc0921546cee1b1344))
+* **ui:** pass ui_scale to all modal render functions ([02a3115](https://github.com/RouHim/rhinco-tv/commit/02a31159c9c772e8e7c65bfcf7cd9bcd9f329e1e))
+
+
+### Features
+
+* **ui:** add blocking progress modal for ludusavi operations ([ef3f4e6](https://github.com/RouHim/rhinco-tv/commit/ef3f4e637bf80234ee20ca1ecbd392e12654820e))
+* **ui:** add icon badge overlay on game tile for backup status ([46fa731](https://github.com/RouHim/rhinco-tv/commit/46fa7310bb010429868627ec00e384503b39f40f))
+* **ui:** add loading feedback during wine prefix scanning ([316f1f7](https://github.com/RouHim/rhinco-tv/commit/316f1f79acabe80cb673246e7b3352d5c082b5f7))
+* **ui:** add ModalState variants for restore confirm, progress, and scanning ([9c2f815](https://github.com/RouHim/rhinco-tv/commit/9c2f815b3170ace6e042fbda309db949951c679a))
+* **ui:** add restore confirmation dialog with gamepad navigation ([ddeffae](https://github.com/RouHim/rhinco-tv/commit/ddeffae2e63c05387a491a1a20357cf673b0f0a0))
+
 ## [2.9.2](https://github.com/RouHim/rhinco-tv/compare/v2.9.1...v2.9.2) (2026-02-15)
 
 
