@@ -107,12 +107,12 @@ impl Toast {
                 .width(Length::Shrink)
                 .height(Length::Shrink);
 
-                // Outer container: positioning layer at bottom-center
+                // Outer container: positioning layer at top-center
                 Container::new(
                     Column::new()
-                        .push(iced::widget::Space::new().height(Length::Fill))
-                        .push(inner)
                         .push(iced::widget::Space::new().height(scaled(40.0, scale)))
+                        .push(inner)
+                        .push(iced::widget::Space::new().height(Length::Fill))
                         .align_x(iced::alignment::Horizontal::Center),
                 )
                 .width(Length::Fill)
