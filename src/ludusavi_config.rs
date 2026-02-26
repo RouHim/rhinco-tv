@@ -11,23 +11,10 @@ pub struct CustomGameEntry {
     pub integration: String,
 }
 
-#[allow(dead_code)]
 fn default_integration() -> String {
     "override".to_string()
 }
 
-impl CustomGameEntry {
-    #[allow(dead_code)]
-    pub fn new(name: String, files: Vec<String>) -> Self {
-        Self {
-            name,
-            files,
-            integration: default_integration(),
-        }
-    }
-}
-
-#[allow(dead_code)]
 /// Returns the path to Ludusavi's config.yaml file
 pub fn ludusavi_config_path() -> Option<PathBuf> {
     let home = std::env::var("HOME").ok()?;
@@ -39,7 +26,6 @@ pub fn ludusavi_config_path() -> Option<PathBuf> {
     )
 }
 
-#[allow(dead_code)]
 /// Reads the Ludusavi config file and returns it as a dynamic YAML value
 pub fn read_ludusavi_config(path: &Path) -> Result<serde_yml::Value> {
     if !path.exists() {
@@ -52,7 +38,6 @@ pub fn read_ludusavi_config(path: &Path) -> Result<serde_yml::Value> {
     Ok(value)
 }
 
-#[allow(dead_code)]
 /// Writes a custom game entry to the Ludusavi config file
 /// Preserves all existing config fields and merges into the customGames array
 /// If a game with the same name exists, updates its files list
@@ -104,85 +89,6 @@ pub fn write_custom_game(path: &Path, entry: &CustomGameEntry) -> Result<()> {
 
     std::fs::write(path, yaml_str).context("Failed to write Ludusavi config file")?;
     Ok(())
-}
-
-#[allow(dead_code)]
-/// Removes a custom game entry by name
-/// Returns true if the game was found and removed, false otherwise
-pub fn remove_custom_game(path: &Path, game_name: &str) -> Result<bool> {
-    let mut config = read_ludusavi_config(path)?;
-
-    let mapping = config
-        .as_mapping_mut()
-        .context("Config root is not a mapping")?;
-
-    let custom_games = match mapping.get_mut(serde_yml::Value::String("customGames".to_string())) {
-        Some(games) => games,
-        None => return Ok(false),
-    };
-
-    let games_seq = custom_games
-        .as_sequence_mut()
-        .context("customGames is not a sequence")?;
-
-    let original_len = games_seq.len();
-
-    games_seq.retain(|game| {
-        if let Some(game_map) = game.as_mapping() {
-            if let Some(name_value) = game_map.get(serde_yml::Value::String("name".to_string())) {
-                if let Some(name_str) = name_value.as_str() {
-                    return name_str != game_name;
-                }
-            }
-        }
-        true
-    });
-
-    let removed = games_seq.len() < original_len;
-
-    if removed {
-        let yaml_str =
-            serde_yml::to_string(&config).context("Failed to serialize config to YAML")?;
-        std::fs::write(path, yaml_str).context("Failed to write Ludusavi config file")?;
-    }
-
-    Ok(removed)
-}
-
-#[allow(dead_code)]
-/// Retrieves a custom game entry by name
-/// Returns None if the game is not found
-pub fn get_custom_game(path: &Path, game_name: &str) -> Result<Option<CustomGameEntry>> {
-    let config = read_ludusavi_config(path)?;
-
-    let mapping = config
-        .as_mapping()
-        .context("Config root is not a mapping")?;
-
-    let custom_games = match mapping.get(serde_yml::Value::String("customGames".to_string())) {
-        Some(games) => games,
-        None => return Ok(None),
-    };
-
-    let games_seq = custom_games
-        .as_sequence()
-        .context("customGames is not a sequence")?;
-
-    for game in games_seq {
-        if let Some(game_map) = game.as_mapping() {
-            if let Some(name_value) = game_map.get(serde_yml::Value::String("name".to_string())) {
-                if let Some(name_str) = name_value.as_str() {
-                    if name_str == game_name {
-                        let entry: CustomGameEntry = serde_yml::from_value(game.clone())
-                            .context("Failed to deserialize custom game entry")?;
-                        return Ok(Some(entry));
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(None)
 }
 
 #[cfg(test)]
@@ -242,8 +148,11 @@ customGames:
         let temp_file = NamedTempFile::new().unwrap();
         std::fs::write(temp_file.path(), "{}").unwrap();
 
-        let entry = CustomGameEntry::new("MyGame".to_string(), vec!["/path/to/saves".to_string()]);
-
+        let entry = CustomGameEntry {
+            name: "MyGame".to_string(),
+            files: vec!["/path/to/saves".to_string()],
+            integration: "override".to_string(),
+        };
         let result = write_custom_game(temp_file.path(), &entry);
         assert!(result.is_ok());
 
@@ -272,8 +181,11 @@ backup:
 "#;
         std::fs::write(temp_file.path(), yaml_content).unwrap();
 
-        let entry = CustomGameEntry::new("NewGame".to_string(), vec!["/new/saves".to_string()]);
-
+        let entry = CustomGameEntry {
+            name: "NewGame".to_string(),
+            files: vec!["/new/saves".to_string()],
+            integration: "override".to_string(),
+        };
         let result = write_custom_game(temp_file.path(), &entry);
         assert!(result.is_ok());
 
@@ -301,10 +213,11 @@ customGames:
 "#;
         std::fs::write(temp_file.path(), yaml_content).unwrap();
 
-        let entry = CustomGameEntry::new(
-            "DuplicateGame".to_string(),
-            vec!["/new/path".to_string(), "/another/path".to_string()],
-        );
+        let entry = CustomGameEntry {
+            name: "DuplicateGame".to_string(),
+            files: vec!["/new/path".to_string(), "/another/path".to_string()],
+            integration: "override".to_string(),
+        };
 
         let result = write_custom_game(temp_file.path(), &entry);
         assert!(result.is_ok());
@@ -322,104 +235,6 @@ customGames:
         assert_eq!(updated_entry.files.len(), 2);
         assert!(updated_entry.files.contains(&"/new/path".to_string()));
         assert!(updated_entry.files.contains(&"/another/path".to_string()));
-    }
-
-    #[test]
-    fn test_remove_custom_game() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let yaml_content = r#"
-customGames:
-  - name: Game1
-    files:
-      - /path1
-    integration: override
-  - name: Game2
-    files:
-      - /path2
-    integration: override
-"#;
-        std::fs::write(temp_file.path(), yaml_content).unwrap();
-
-        let result = remove_custom_game(temp_file.path(), "Game1");
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-
-        let config = read_ludusavi_config(temp_file.path()).unwrap();
-        let mapping = config.as_mapping().unwrap();
-        let custom_games = mapping
-            .get(serde_yml::Value::String("customGames".to_string()))
-            .unwrap();
-        let games_seq = custom_games.as_sequence().unwrap();
-        assert_eq!(games_seq.len(), 1);
-
-        let remaining: CustomGameEntry = serde_yml::from_value(games_seq[0].clone()).unwrap();
-        assert_eq!(remaining.name, "Game2");
-    }
-
-    #[test]
-    fn test_remove_nonexistent_game() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let yaml_content = r#"
-customGames:
-  - name: OnlyGame
-    files:
-      - /path
-    integration: override
-"#;
-        std::fs::write(temp_file.path(), yaml_content).unwrap();
-
-        let result = remove_custom_game(temp_file.path(), "NonExistent");
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
-
-        let config = read_ludusavi_config(temp_file.path()).unwrap();
-        let mapping = config.as_mapping().unwrap();
-        let custom_games = mapping
-            .get(serde_yml::Value::String("customGames".to_string()))
-            .unwrap();
-        let games_seq = custom_games.as_sequence().unwrap();
-        assert_eq!(games_seq.len(), 1);
-    }
-
-    #[test]
-    fn test_get_custom_game_found() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let yaml_content = r#"
-customGames:
-  - name: FoundGame
-    files:
-      - /save/path
-    integration: extend
-"#;
-        std::fs::write(temp_file.path(), yaml_content).unwrap();
-
-        let result = get_custom_game(temp_file.path(), "FoundGame");
-        assert!(result.is_ok());
-
-        let entry = result.unwrap();
-        assert!(entry.is_some());
-
-        let entry = entry.unwrap();
-        assert_eq!(entry.name, "FoundGame");
-        assert_eq!(entry.files, vec!["/save/path".to_string()]);
-        assert_eq!(entry.integration, "extend");
-    }
-
-    #[test]
-    fn test_get_custom_game_not_found() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let yaml_content = r#"
-customGames:
-  - name: SomeGame
-    files:
-      - /path
-    integration: override
-"#;
-        std::fs::write(temp_file.path(), yaml_content).unwrap();
-
-        let result = get_custom_game(temp_file.path(), "NotHere");
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
     }
 
     #[test]
@@ -442,10 +257,11 @@ customGames:
         std::fs::write(temp_file.path(), yaml_content).unwrap();
 
         // Write a new custom game
-        let entry = CustomGameEntry::new(
-            "RoundtripGame".to_string(),
-            vec!["/roundtrip/save".to_string()],
-        );
+        let entry = CustomGameEntry {
+            name: "RoundtripGame".to_string(),
+            files: vec!["/roundtrip/save".to_string()],
+            integration: "override".to_string(),
+        };
         write_custom_game(temp_file.path(), &entry).unwrap();
 
         let config = read_ludusavi_config(temp_file.path()).unwrap();
