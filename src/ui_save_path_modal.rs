@@ -35,9 +35,8 @@ pub fn render_save_path_modal(
     selected_button: usize,
     manual_path: &str,
     _editing_manual: bool,
+    scale: f32,
 ) -> Element<'static, Message> {
-    let scale = 1.0;
-
     let title = Text::new(format!("Configure Save Paths: {}", game_name))
         .font(SANSATION)
         .size(scaled(BASE_FONT_HEADER, scale))

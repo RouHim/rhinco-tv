@@ -1545,6 +1545,7 @@ impl Launcher {
                     *selected_index,
                     self.config.auto_backup,
                     self.config.auto_cloud_sync,
+                    scale,
                 ))
             }
             ModalState::Settings {
@@ -1563,6 +1564,7 @@ impl Launcher {
                     api_key_set,
                     *editing_api_key,
                     keyboard.as_ref(),
+                    scale,
                 ))
             }
             ModalState::SavePathConfig {
@@ -1579,6 +1581,7 @@ impl Launcher {
                 *selected_button,
                 manual_path,
                 *editing_manual,
+                scale,
             )),
             ModalState::None => None,
         }

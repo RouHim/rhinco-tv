@@ -9,9 +9,8 @@ pub fn render_ludusavi_settings_modal(
     selected_index: usize,
     auto_backup: bool,
     auto_cloud_sync: bool,
+    scale: f32,
 ) -> Element<'static, Message> {
-    let scale = 1.0;
-
     let title = Text::new("Save Sync Settings")
         .font(SANSATION)
         .size(scaled(BASE_FONT_HEADER, scale))

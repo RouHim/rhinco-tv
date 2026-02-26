@@ -14,9 +14,8 @@ pub fn render_settings_modal<'a>(
     api_key_set: bool,
     editing_api_key: bool,
     keyboard: Option<&'a VirtualKeyboard>,
+    scale: f32,
 ) -> Element<'a, Message> {
-    let scale = 1.0;
-
     if editing_api_key {
         if let Some(kb) = keyboard {
             return render_keyboard_overlay(kb, scale);
