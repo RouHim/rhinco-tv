@@ -2,7 +2,10 @@ use iced::keyboard::{self, key::Named, Key};
 use iced::widget::operation;
 
 use crate::ui_app_update_modal::{handle_app_update_navigation, render_app_update_modal};
-use crate::ui_modals::{render_app_not_found_modal, render_context_menu, render_help_modal};
+use crate::ui_modals::{
+    render_app_not_found_modal, render_context_menu, render_help_modal,
+    render_restore_confirm_modal,
+};
 use crate::ui_system_update_modal::render_system_update_modal;
 use crate::ui_theme::{
     BASE_FONT_TITLE, BASE_PADDING_SMALL, BATTERY_CHECK_INTERVAL_SECS, CATEGORY_ROW_SPACING,
@@ -1586,7 +1589,14 @@ impl Launcher {
                 scale,
             )),
             ModalState::None => None,
-            ModalState::RestoreConfirm { .. } => None,
+            ModalState::RestoreConfirm {
+                game_name,
+                selected_index,
+            } => Some(render_restore_confirm_modal(
+                game_name,
+                *selected_index,
+                scale,
+            )),
             ModalState::LudusaviProgress { .. } => None,
             ModalState::SavePathScanning { .. } => None,
         }
@@ -1705,7 +1715,9 @@ impl Launcher {
                 Some(self.handle_save_path_modal_navigation(action))
             }
             ModalState::None => None,
-            ModalState::RestoreConfirm { .. } => None,
+            ModalState::RestoreConfirm { .. } => {
+                Some(self.handle_restore_confirm_navigation(action))
+            }
             ModalState::LudusaviProgress { .. } => None,
             ModalState::SavePathScanning { .. } => None,
         }
@@ -1973,21 +1985,12 @@ impl Launcher {
             ContextMenuAction::RestoreSaves => {
                 if let Some(game) = self.games.get_selected() {
                     let game_name = game.clone().name;
-                    self.ludusavi_operation_in_progress = true;
                     self.close_modal();
-                    let operation = crate::ludusavi::LudusaviOperation::Restore;
-                    let operation_name = operation.operation_name().to_string();
-                    let game_name_clone = game_name.clone();
-                    Task::perform(
-                        async move {
-                            crate::ludusavi::execute_operation(&game_name_clone, operation).await
-                        },
-                        move |result| Message::LudusaviOperationCompleted {
-                            operation: operation_name,
-                            game_name: Some(game_name),
-                            result,
-                        },
-                    )
+                    self.set_modal(ModalState::RestoreConfirm {
+                        game_name,
+                        selected_index: 1,
+                    });
+                    Task::none()
                 } else {
                     self.close_modal_none()
                 }
@@ -2350,6 +2353,54 @@ impl Launcher {
             item_id,
             item_name,
             category,
+            selected_index,
+        });
+        Task::none()
+    }
+
+    fn handle_restore_confirm_navigation(&mut self, action: Action) -> Task<Message> {
+        let (game_name, mut selected_index) = match &self.modal {
+            ModalState::RestoreConfirm {
+                game_name,
+                selected_index,
+            } => (game_name.clone(), *selected_index),
+            _ => return Task::none(),
+        };
+
+        match action {
+            Action::Left | Action::Right | Action::Up | Action::Down => {
+                // Toggle between the two options (Restore / Cancel)
+                selected_index = 1 - selected_index;
+            }
+            Action::Select => {
+                if selected_index == 0 {
+                    // Restore confirmed — start the restore operation
+                    self.ludusavi_operation_in_progress = true;
+                    self.close_modal();
+                    let operation = crate::ludusavi::LudusaviOperation::Restore;
+                    let operation_name = operation.operation_name().to_string();
+                    let game_name_clone = game_name.clone();
+                    return Task::perform(
+                        async move {
+                            crate::ludusavi::execute_operation(&game_name_clone, operation).await
+                        },
+                        move |result| Message::LudusaviOperationCompleted {
+                            operation: operation_name,
+                            game_name: Some(game_name),
+                            result,
+                        },
+                    );
+                }
+                return self.close_modal_none();
+            }
+            Action::Back | Action::ContextMenu | Action::ShowHelp => {
+                return self.close_modal_none();
+            }
+            _ => {}
+        }
+
+        self.set_modal(ModalState::RestoreConfirm {
+            game_name,
             selected_index,
         });
         Task::none()

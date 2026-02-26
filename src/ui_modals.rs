@@ -298,6 +298,82 @@ pub fn render_app_not_found_modal<'a>(
         .into()
 }
 
+pub fn render_restore_confirm_modal<'a>(
+    game_name: &str,
+    selected_index: usize,
+    scale: f32,
+) -> Element<'a, Message> {
+    let title = Text::new("Restore Saves?")
+        .font(SANSATION)
+        .size(scaled(26.0, scale))
+        .color(Color::WHITE);
+
+    let title_container = Container::new(title)
+        .padding(scaled(BASE_PADDING_SMALL, scale))
+        .width(Length::Fill)
+        .center_x(Length::Fill);
+
+    let message = Text::new(format!(
+        "This will overwrite your current saves for {}. Are you sure?",
+        game_name
+    ))
+    .font(SANSATION)
+    .size(scaled(BASE_FONT_LARGE, scale))
+    .color(COLOR_TEXT_BRIGHT)
+    .align_x(Horizontal::Center);
+
+    let message_container = Container::new(message)
+        .padding(scaled(BASE_PADDING_SMALL, scale))
+        .width(Length::Fill)
+        .center_x(Length::Fill);
+
+    let options = ["Restore", "Cancel"];
+
+    let options_row = Row::with_children(
+        options
+            .iter()
+            .enumerate()
+            .map(|(index, &label)| modal_button(label, index == selected_index, scale)),
+    )
+    .spacing(scaled(BASE_PADDING_MEDIUM, scale));
+
+    let options_container = Container::new(options_row)
+        .padding(scaled(BASE_PADDING_SMALL, scale))
+        .width(Length::Fill)
+        .center_x(Length::Fill);
+
+    let modal_column = Column::new()
+        .push(title_container)
+        .push(message_container)
+        .push(options_container)
+        .spacing(scaled(BASE_PADDING_SMALL, scale));
+
+    let border_radius = scaled(10.0, scale);
+    let modal_box = Container::new(modal_column)
+        .width(scaled_fixed(MODAL_WIDTH_MEDIUM, scale))
+        .padding(scaled(BASE_PADDING_MEDIUM, scale))
+        .style(move |_| iced::widget::container::Style {
+            background: Some(COLOR_PANEL.into()),
+            border: iced::Border {
+                color: Color::WHITE,
+                width: 1.0,
+                radius: border_radius.into(),
+            },
+            ..Default::default()
+        });
+
+    Container::new(modal_box)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .style(|_| iced::widget::container::Style {
+            background: Some(Color::TRANSPARENT.into()),
+            ..Default::default()
+        })
+        .into()
+}
+
 fn modal_button<'a>(label: &'a str, is_selected: bool, scale: f32) -> Element<'a, Message> {
     let text = Text::new(label)
         .font(SANSATION)
