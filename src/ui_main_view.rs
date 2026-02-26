@@ -253,9 +253,7 @@ fn render_item<'a>(
 
         if show_badge {
             let badge = Container::new(
-                Text::new("💾")
-                    .size(scaled(16.0, scale))
-                    .color(Color::WHITE),
+                icons::floppy_disk_icon(scaled(16.0, scale), Color::WHITE),
             )
             .padding(scaled(3.0, scale))
             .style(|_theme| iced::widget::container::Style {

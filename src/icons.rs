@@ -78,3 +78,7 @@ pub fn bolt_icon<'a, Message: 'a>(size: f32, color: Color) -> Element<'a, Messag
 pub fn plug_icon<'a, Message: 'a>(size: f32, color: Color) -> Element<'a, Message> {
     fontawesome::plug().size(size).color(color).into()
 }
+
+pub fn floppy_disk_icon<'a, Message: 'a>(size: f32, color: Color) -> Element<'a, Message> {
+    fontawesome::floppy_disk().size(size).color(color).into()
+}

@@ -258,29 +258,45 @@ pub fn render_save_path_scanning_modal(
     spinner_tick: usize,
     scale: f32,
 ) -> Element<'static, Message> {
-    let title = Text::new("Scanning Save Paths...")
-        .font(SANSATION)
-        .size(scaled(BASE_FONT_HEADER, scale))
-        .color(Color::WHITE)
-        .align_x(Horizontal::Center);
+    let title = Container::new(
+        Text::new("Scanning Save Paths...")
+            .font(SANSATION)
+            .size(scaled(BASE_FONT_HEADER, scale))
+            .color(Color::WHITE)
+            .align_x(Horizontal::Center),
+    )
+    .width(Length::Fill)
+    .center_x(Length::Fill);
 
-    let subtitle = Text::new(game_name.to_string())
-        .font(SANSATION)
-        .size(scaled(BASE_FONT_LARGE, scale))
-        .color(COLOR_TEXT_BRIGHT)
-        .align_x(Horizontal::Center);
+    let subtitle = Container::new(
+        Text::new(game_name.to_string())
+            .font(SANSATION)
+            .size(scaled(BASE_FONT_LARGE, scale))
+            .color(COLOR_TEXT_BRIGHT)
+            .align_x(Horizontal::Center),
+    )
+    .width(Length::Fill)
+    .center_x(Length::Fill);
 
-    let spinner = Text::new(SPINNER_FRAMES[spinner_tick % SPINNER_FRAMES.len()])
-        .font(SANSATION)
-        .size(scaled(BASE_FONT_DISPLAY, scale))
-        .color(COLOR_ACCENT)
-        .align_x(Horizontal::Center);
+    let spinner = Container::new(
+        Text::new(SPINNER_FRAMES[spinner_tick % SPINNER_FRAMES.len()])
+            .font(SANSATION)
+            .size(scaled(BASE_FONT_DISPLAY, scale))
+            .color(COLOR_ACCENT)
+            .align_x(Horizontal::Center),
+    )
+    .width(Length::Fill)
+    .center_x(Length::Fill);
 
-    let hint = Text::new("Searching wine prefixes")
-        .font(SANSATION)
-        .size(scaled(BASE_FONT_MEDIUM, scale))
-        .color(COLOR_TEXT_HINT)
-        .align_x(Horizontal::Center);
+    let hint = Container::new(
+        Text::new("Searching wine prefixes")
+            .font(SANSATION)
+            .size(scaled(BASE_FONT_MEDIUM, scale))
+            .color(COLOR_TEXT_HINT)
+            .align_x(Horizontal::Center),
+    )
+    .width(Length::Fill)
+    .center_x(Length::Fill);
 
     let modal_content = Column::new()
         .push(title)
@@ -288,6 +304,7 @@ pub fn render_save_path_scanning_modal(
         .push(spinner)
         .push(hint)
         .spacing(scaled(BASE_PADDING_MEDIUM, scale))
+        .width(Length::Fill)
         .align_x(Horizontal::Center);
 
     let border_radius = scaled(10.0, scale);
