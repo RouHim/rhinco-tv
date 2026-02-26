@@ -61,6 +61,7 @@ use crate::ui_ludusavi_settings_modal;
 use crate::ui_main_view::{
     get_category_dimensions, render_controls_hint, render_section_row, render_status,
 };
+use crate::ui_progress_modal::render_ludusavi_progress_modal;
 use crate::ui_settings_modal::render_settings_modal;
 use crate::ui_state::{AppUpdatePhase, AppUpdateState, AuthState, ModalState};
 use crate::ui_system_info_modal::render_system_info_modal;
@@ -422,6 +423,9 @@ impl Launcher {
                 result,
             } => {
                 self.ludusavi_operation_in_progress = false;
+                if matches!(self.modal, ModalState::LudusaviProgress { .. }) {
+                    self.set_modal(ModalState::None);
+                }
 
                 match result {
                     Ok(res) => {
@@ -555,6 +559,10 @@ impl Launcher {
                 if let Some(item) = self.games.get_selected() {
                     let item_clone = item.clone();
                     let game_name_clone = game_name.clone();
+                    self.set_modal(ModalState::SavePathScanning {
+                        game_name: game_name.clone(),
+                        spinner_tick: 0,
+                    });
                     Task::perform(
                         async move {
                             let prefixes =
@@ -668,8 +676,17 @@ impl Launcher {
             }
 
             Message::None => Task::none(),
-            Message::SpinnerTick => Task::none(),
-            Message::ConfirmRestore { .. } => Task::none(),
+            Message::SpinnerTick => {
+                const SPINNER_FRAME_COUNT: usize = 4;
+                match &mut self.modal {
+                    ModalState::LudusaviProgress { spinner_tick, .. }
+                    | ModalState::SavePathScanning { spinner_tick, .. } => {
+                        *spinner_tick = (*spinner_tick + 1) % SPINNER_FRAME_COUNT;
+                    }
+                    _ => {}
+                }
+                Task::none()
+            }
         }
     }
 
@@ -1597,8 +1614,25 @@ impl Launcher {
                 *selected_index,
                 scale,
             )),
-            ModalState::LudusaviProgress { .. } => None,
-            ModalState::SavePathScanning { .. } => None,
+            ModalState::LudusaviProgress {
+                operation_name,
+                game_name,
+                spinner_tick,
+            } => Some(render_ludusavi_progress_modal(
+                operation_name,
+                game_name,
+                *spinner_tick,
+                scale,
+            )),
+            ModalState::SavePathScanning {
+                game_name,
+                spinner_tick,
+            } => Some(render_ludusavi_progress_modal(
+                "Scanning save paths",
+                game_name,
+                *spinner_tick,
+                scale,
+            )),
         }
     }
 
@@ -1656,6 +1690,14 @@ impl Launcher {
                         .map(|_| Message::AppUpdateSpinnerTick),
                 );
             }
+        }
+
+        if matches!(
+            self.modal,
+            ModalState::LudusaviProgress { .. } | ModalState::SavePathScanning { .. }
+        ) {
+            subscriptions
+                .push(iced::time::every(Duration::from_millis(150)).map(|_| Message::SpinnerTick));
         }
 
         if self.toast.is_showing() {
@@ -1718,8 +1760,12 @@ impl Launcher {
             ModalState::RestoreConfirm { .. } => {
                 Some(self.handle_restore_confirm_navigation(action))
             }
-            ModalState::LudusaviProgress { .. } => None,
-            ModalState::SavePathScanning { .. } => None,
+            ModalState::LudusaviProgress { .. } => {
+                Some(self.handle_ludusavi_progress_navigation(action))
+            }
+            ModalState::SavePathScanning { .. } => {
+                Some(self.handle_ludusavi_progress_navigation(action))
+            }
         }
     }
 
@@ -1960,13 +2006,17 @@ impl Launcher {
                 if let Some(game) = self.games.get_selected() {
                     let game_name = game.clone().name;
                     self.ludusavi_operation_in_progress = true;
-                    self.close_modal();
                     let operation = if self.config.auto_cloud_sync {
                         crate::ludusavi::LudusaviOperation::BackupWithCloudSync
                     } else {
                         crate::ludusavi::LudusaviOperation::Backup
                     };
                     let operation_name = operation.operation_name().to_string();
+                    self.set_modal(ModalState::LudusaviProgress {
+                        operation_name: operation_name.clone(),
+                        game_name: game_name.clone(),
+                        spinner_tick: 0,
+                    });
                     let game_name_clone = game_name.clone();
                     Task::perform(
                         async move {
@@ -2376,9 +2426,13 @@ impl Launcher {
                 if selected_index == 0 {
                     // Restore confirmed — start the restore operation
                     self.ludusavi_operation_in_progress = true;
-                    self.close_modal();
                     let operation = crate::ludusavi::LudusaviOperation::Restore;
                     let operation_name = operation.operation_name().to_string();
+                    self.set_modal(ModalState::LudusaviProgress {
+                        operation_name: operation_name.clone(),
+                        game_name: game_name.clone(),
+                        spinner_tick: 0,
+                    });
                     let game_name_clone = game_name.clone();
                     return Task::perform(
                         async move {
@@ -2404,6 +2458,23 @@ impl Launcher {
             selected_index,
         });
         Task::none()
+    }
+
+    fn handle_ludusavi_progress_navigation(&mut self, action: Action) -> Task<Message> {
+        match action {
+            Action::Up
+            | Action::Down
+            | Action::Left
+            | Action::Right
+            | Action::Select
+            | Action::Back
+            | Action::ShowHelp
+            | Action::ContextMenu
+            | Action::AddApp
+            | Action::NextCategory
+            | Action::PrevCategory
+            | Action::Quit => Task::none(),
+        }
     }
 
     fn handle_system_update_navigation(&mut self, action: Action) -> Task<Message> {

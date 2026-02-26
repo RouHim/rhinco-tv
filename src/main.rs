@@ -39,6 +39,7 @@ mod ui_components;
 mod ui_ludusavi_settings_modal;
 mod ui_main_view;
 mod ui_modals;
+mod ui_progress_modal;
 mod ui_save_path_modal;
 mod ui_settings_modal;
 mod ui_state;

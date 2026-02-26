@@ -86,9 +86,6 @@ pub enum Message {
         game_name: String,
         status: Option<bool>,
     },
-    ConfirmRestore {
-        game_name: String,
-    },
     // Settings modal messages
     OpenSettings,
     CloseSettings,

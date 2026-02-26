@@ -6,6 +6,7 @@ use crate::messages::Message;
 use crate::ui_theme::*;
 use crate::virtual_keyboard::VirtualKeyboard;
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_settings_modal<'a>(
     selected_index: usize,
     autostart_enabled: bool,
