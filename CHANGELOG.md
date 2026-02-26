@@ -1,3 +1,11 @@
+## [2.11.1](https://github.com/RouHim/rhinco-tv/compare/v2.11.0...v2.11.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* **ui:** center save flow modals consistently ([decee9d](https://github.com/RouHim/rhinco-tv/commit/decee9d66e268d5c283ade6b0bee5c7be2dd9e27))
+* **ui:** replace save emoji with FontAwesome floppy_disk icon ([0e3606f](https://github.com/RouHim/rhinco-tv/commit/0e3606f3b4050eb499bf8728a7c8a91459f33752))
+
 # [2.11.0](https://github.com/RouHim/rhinco-tv/compare/v2.10.0...v2.11.0) (2026-02-26)
 
 
