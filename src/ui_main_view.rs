@@ -252,19 +252,17 @@ fn render_item<'a>(
             });
 
         if show_badge {
-            let badge = Container::new(
-                icons::floppy_disk_icon(scaled(16.0, scale), Color::WHITE),
-            )
-            .padding(scaled(3.0, scale))
-            .style(|_theme| iced::widget::container::Style {
-                background: Some(Background::Color(COLOR_ACCENT)),
-                border: Border {
-                    radius: (4.0).into(),
-                    width: 0.0,
-                    color: Color::TRANSPARENT,
-                },
-                ..Default::default()
-            });
+            let badge = Container::new(icons::floppy_disk_icon(scaled(16.0, scale), Color::WHITE))
+                .padding(scaled(3.0, scale))
+                .style(|_theme| iced::widget::container::Style {
+                    background: Some(Background::Color(COLOR_ACCENT)),
+                    border: Border {
+                        radius: (4.0).into(),
+                        width: 0.0,
+                        color: Color::TRANSPARENT,
+                    },
+                    ..Default::default()
+                });
 
             let badge_overlay = Container::new(badge)
                 .width(Length::Fill)
