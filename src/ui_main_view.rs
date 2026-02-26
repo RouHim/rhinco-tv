@@ -1,6 +1,6 @@
 use iced::alignment::Horizontal;
-use iced::widget::{scrollable, text, Column, Container, Row, Scrollable, Text};
-use iced::{Background, Border, Color, Element, Length, Shadow};
+use iced::widget::{scrollable, text, Column, Container, Row, Scrollable, Stack, Text};
+use iced::{alignment::Vertical, Background, Border, Color, Element, Length, Shadow};
 use iced_anim::{spring::Motion, AnimationBuilder};
 use std::path::PathBuf;
 
@@ -63,7 +63,7 @@ pub fn render_section_row<'a>(
                 .color(COLOR_TEXT_DIM),
         )
         .height(Length::Fixed(item_height))
-        .align_y(iced::alignment::Vertical::Center)
+        .align_y(Vertical::Center)
         .padding(20.0 * scale)
         .into()
     } else {
@@ -190,7 +190,7 @@ fn render_item<'a>(
                 .width(Length::Fixed(image_width))
                 .height(Length::Fixed(image_height))
                 .align_x(Horizontal::Center)
-                .align_y(iced::alignment::Vertical::Center)
+                .align_y(Vertical::Center)
                 .into()
         } else {
             render_icon(
@@ -205,11 +205,7 @@ fn render_item<'a>(
 
         let icon_container = Container::new(icon_widget).padding(6.0 * scale);
 
-        let label_text = if show_badge {
-            format!("{} ✓", item_name)
-        } else {
-            item_name.clone()
-        };
+        let label_text = item_name.clone();
 
         let label = Text::new(label_text)
             .font(SANSATION)
@@ -225,12 +221,12 @@ fn render_item<'a>(
             .align_x(iced::Alignment::Center)
             .spacing(5.0 * scale);
 
-        Container::new(content)
+        let tile = Container::new(content)
             .width(Length::Fixed(item_width))
             .height(Length::Shrink)
             .padding(6.0 * scale)
             .align_x(Horizontal::Center)
-            .align_y(iced::alignment::Vertical::Center)
+            .align_y(Vertical::Center)
             .style(move |_theme| iced::widget::container::Style {
                 border: iced::Border {
                     color: Color {
@@ -253,8 +249,35 @@ fn render_item<'a>(
                     blur_radius: shadow_blur * scale,
                 },
                 ..Default::default()
-            })
-            .into()
+            });
+
+        if show_badge {
+            let badge = Container::new(
+                Text::new("💾")
+                    .size(scaled(16.0, scale))
+                    .color(Color::WHITE),
+            )
+            .padding(scaled(3.0, scale))
+            .style(|_theme| iced::widget::container::Style {
+                background: Some(Background::Color(COLOR_ACCENT)),
+                border: Border {
+                    radius: (4.0).into(),
+                    width: 0.0,
+                    color: Color::TRANSPARENT,
+                },
+                ..Default::default()
+            });
+
+            let badge_overlay = Container::new(badge)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Right)
+                .align_y(Vertical::Bottom);
+
+            Stack::new().push(tile).push(badge_overlay).into()
+        } else {
+            tile.into()
+        }
     })
     .animation(Motion::SNAPPY)
     .into()
