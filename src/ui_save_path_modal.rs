@@ -33,8 +33,6 @@ pub fn render_save_path_modal(
     suggested_paths: &[SuggestedSavePathDisplay],
     selected_indices: &HashSet<usize>,
     selected_button: usize,
-    manual_path: &str,
-    _editing_manual: bool,
     scale: f32,
 ) -> Element<'static, Message> {
     let title = Text::new(format!("Configure Save Paths: {}", game_name))
@@ -50,13 +48,12 @@ pub fn render_save_path_modal(
     let mut content_column = Column::new().spacing(scaled(BASE_PADDING_SMALL, scale));
 
     if suggested_paths.is_empty() {
-        content_column = content_column.push(
-            Text::new("No save paths found. Please enter a path manually.")
-                .font(SANSATION)
-                .size(scaled(BASE_FONT_LARGE, scale))
-                .color(COLOR_TEXT_MUTED)
-                .align_x(Horizontal::Center),
-        );
+        let hint_text = Text::new("We were not able to auto-detect save game paths for this game. Please configure save games manually using the Ludusavi GUI.")
+            .font(SANSATION)
+            .size(scaled(BASE_FONT_LARGE, scale))
+            .color(COLOR_TEXT_MUTED)
+            .align_x(Horizontal::Center);
+        content_column = content_column.push(hint_text);
     } else {
         for (index, path) in suggested_paths.iter().enumerate() {
             let is_selected = selected_indices.contains(&index);
@@ -92,32 +89,26 @@ pub fn render_save_path_modal(
         }
     }
 
-    let manual_section_index = suggested_paths.len();
-    let manual_label = if manual_path.is_empty() {
-        "Manual path (optional): <empty>".to_string()
-    } else {
-        format!("Manual path (optional): {}", manual_path)
-    };
-
-    content_column = content_column.push(path_item(
-        manual_label,
-        selected_button == manual_section_index,
-        COLOR_TEXT_MUTED,
-        scale,
-    ));
-
     let content_container = Container::new(content_column)
         .padding(scaled(BASE_PADDING_MEDIUM, scale))
         .width(Length::Fill)
         .center_x(Length::Fill);
 
-    let save_button_index = suggested_paths.len() + 1;
-    let cancel_button_index = suggested_paths.len() + 2;
-
-    let buttons_row = Row::with_children(vec![
-        modal_button("Save", selected_button == save_button_index, scale),
-        modal_button("Cancel", selected_button == cancel_button_index, scale),
-    ])
+    let buttons_row = if suggested_paths.is_empty() {
+        let cancel_button_index = 0;
+        Row::with_children(vec![modal_button(
+            "Cancel",
+            selected_button == cancel_button_index,
+            scale,
+        )])
+    } else {
+        let save_button_index = suggested_paths.len();
+        let cancel_button_index = suggested_paths.len() + 1;
+        Row::with_children(vec![
+            modal_button("Save", selected_button == save_button_index, scale),
+            modal_button("Cancel", selected_button == cancel_button_index, scale),
+        ])
+    }
     .spacing(scaled(BASE_PADDING_MEDIUM, scale));
 
     let buttons_container = Container::new(buttons_row)

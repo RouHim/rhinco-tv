@@ -61,8 +61,6 @@ pub enum ModalState {
         suggested_paths: Vec<SuggestedSavePathDisplay>,
         selected_indices: HashSet<usize>,
         selected_button: usize,
-        manual_path: String,
-        editing_manual: bool,
     },
 }
 
