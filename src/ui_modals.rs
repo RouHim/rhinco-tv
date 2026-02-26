@@ -306,7 +306,8 @@ pub fn render_restore_confirm_modal<'a>(
     let title = Text::new("Restore Saves?")
         .font(SANSATION)
         .size(scaled(26.0, scale))
-        .color(Color::WHITE);
+        .color(Color::WHITE)
+        .align_x(Horizontal::Center);
 
     let title_container = Container::new(title)
         .padding(scaled(BASE_PADDING_SMALL, scale))
@@ -346,7 +347,9 @@ pub fn render_restore_confirm_modal<'a>(
         .push(title_container)
         .push(message_container)
         .push(options_container)
-        .spacing(scaled(BASE_PADDING_SMALL, scale));
+        .spacing(scaled(BASE_PADDING_SMALL, scale))
+        .width(Length::Fill)
+        .align_x(Horizontal::Center);
 
     let border_radius = scaled(10.0, scale);
     let modal_box = Container::new(modal_column)
