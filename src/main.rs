@@ -21,6 +21,7 @@ mod messages;
 mod model;
 mod mupen64plus;
 mod osk;
+mod save_path_detector;
 mod searxng;
 mod sleep_inhibit;
 mod snes9x;
