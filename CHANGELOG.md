@@ -1,3 +1,22 @@
+# [2.11.0](https://github.com/RouHim/rhinco-tv/compare/v2.10.0...v2.11.0) (2026-02-26)
+
+
+### Bug Fixes
+
+* **toast:** position notification at top-center instead of bottom-center ([628b308](https://github.com/RouHim/rhinco-tv/commit/628b308b6cb5241ba1cb4dc5f1e6199347e70638))
+* **toast:** render as small bottom-center overlay instead of fullscreen ([2c9759c](https://github.com/RouHim/rhinco-tv/commit/2c9759cfeedb9b41c11e1ed8b2710aae038dd9e2))
+* **ui:** add left/right navigation to save path config modal ([91848b2](https://github.com/RouHim/rhinco-tv/commit/91848b2c7d65f399fceb46e22bc6d76141cc0b90))
+* **ui:** remove leftover manual_path/editing_manual from save path modal ([fff3eee](https://github.com/RouHim/rhinco-tv/commit/fff3eee9e6573defe8dc1cfb6a2bd8bba70dfcb6))
+
+
+### Features
+
+* **save-detect:** add Heroic save path extraction ([9006922](https://github.com/RouHim/rhinco-tv/commit/900692210076f7b6b7ad10358f80078f738b9342))
+* **save-detect:** add ludusavi manifest parser with AppID and fuzzy name lookup ([5d5af2a](https://github.com/RouHim/rhinco-tv/commit/5d5af2ab25f1be330d48bed2ca2cff6e422e8d88))
+* **save-detect:** add save path detector orchestrating all 4 sources ([17c2530](https://github.com/RouHim/rhinco-tv/commit/17c2530ef61bd280426f308b39e3889658bb96f8))
+* **save-detect:** add Steam cloud remotestorage log parser ([861daff](https://github.com/RouHim/rhinco-tv/commit/861daff0f2a12a899516704be28e2dbccdd1bc64))
+* **ui:** wire auto-detection into save path modal, remove manual input ([d131428](https://github.com/RouHim/rhinco-tv/commit/d131428dbe2ede92dd9f13f4d8a7ee0d76fc2778))
+
 # [2.10.0](https://github.com/RouHim/rhinco-tv/compare/v2.9.2...v2.10.0) (2026-02-26)
 
 
