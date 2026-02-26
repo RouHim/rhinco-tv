@@ -37,6 +37,19 @@ pub enum ModalState {
     LudusaviSettings {
         selected_index: usize,
     },
+    RestoreConfirm {
+        game_name: String,
+        selected_index: usize,
+    },
+    LudusaviProgress {
+        operation_name: String,
+        game_name: String,
+        spinner_tick: usize,
+    },
+    SavePathScanning {
+        game_name: String,
+        spinner_tick: usize,
+    },
     Settings {
         selected_index: usize,
         editing_api_key: bool,
@@ -110,6 +123,66 @@ mod tests {
                 assert_eq!(api_key_buffer, "");
             }
             _ => panic!("Expected ModalState::Settings variant"),
+        }
+    }
+
+    #[test]
+    fn test_restore_confirm_initialization() {
+        let modal = ModalState::RestoreConfirm {
+            game_name: "Test Game".to_string(),
+            selected_index: 1,
+        };
+
+        match modal {
+            ModalState::RestoreConfirm {
+                game_name,
+                selected_index,
+            } => {
+                assert_eq!(game_name, "Test Game");
+                assert_eq!(selected_index, 1); // Cancel = safe default
+            }
+            _ => panic!("Expected ModalState::RestoreConfirm variant"),
+        }
+    }
+
+    #[test]
+    fn test_ludusavi_progress_initialization() {
+        let modal = ModalState::LudusaviProgress {
+            operation_name: "backup".to_string(),
+            game_name: "Test Game".to_string(),
+            spinner_tick: 0,
+        };
+
+        match modal {
+            ModalState::LudusaviProgress {
+                operation_name,
+                game_name,
+                spinner_tick,
+            } => {
+                assert_eq!(operation_name, "backup");
+                assert_eq!(game_name, "Test Game");
+                assert_eq!(spinner_tick, 0);
+            }
+            _ => panic!("Expected ModalState::LudusaviProgress variant"),
+        }
+    }
+
+    #[test]
+    fn test_save_path_scanning_initialization() {
+        let modal = ModalState::SavePathScanning {
+            game_name: "Test Game".to_string(),
+            spinner_tick: 0,
+        };
+
+        match modal {
+            ModalState::SavePathScanning {
+                game_name,
+                spinner_tick,
+            } => {
+                assert_eq!(game_name, "Test Game");
+                assert_eq!(spinner_tick, 0);
+            }
+            _ => panic!("Expected ModalState::SavePathScanning variant"),
         }
     }
 }

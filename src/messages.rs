@@ -55,6 +55,7 @@ pub enum Message {
     SystemBatteryUpdated(Option<gilrs::PowerInfo>),
     Tick(DateTime<Local>),
     AppUpdateSpinnerTick,
+    SpinnerTick,
     AskpassEvent(AskpassEvent),
     AuthKeyboard(KeyboardMessage),
     AuthSubmit,
@@ -84,6 +85,9 @@ pub enum Message {
     BackupStatusReceived {
         game_name: String,
         status: Option<bool>,
+    },
+    ConfirmRestore {
+        game_name: String,
     },
     // Settings modal messages
     OpenSettings,
