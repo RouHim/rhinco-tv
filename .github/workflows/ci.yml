@@ -167,13 +167,13 @@ jobs:
           sudo apt-get install -y libudev-dev libasound2-dev pkg-config
 
       - name: Download x64 artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: rhinco-tv-x86_64-unknown-linux-gnu
           path: ./release-artifacts/x86_64-unknown-linux-gnu
 
       - name: Download ARM64 artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: rhinco-tv-aarch64-unknown-linux-gnu
           path: ./release-artifacts/aarch64-unknown-linux-gnu
