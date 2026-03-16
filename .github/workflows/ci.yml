@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: ['main']
   pull_request:
     types:
       - opened
@@ -65,82 +66,8 @@ jobs:
           RUSTC_WRAPPER: sccache
         run: cargo build --release
 
-  build-x64:
-    needs: [ check ]
-    runs-on: ubuntu-latest
-    name: Build x86_64-unknown-linux-gnu
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev libasound2-dev pkg-config libwayland-dev libxkbcommon-dev libfontconfig1-dev
-
-      - name: Build release
-        env:
-          STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
-        run: cargo build --release --target x86_64-unknown-linux-gnu
-
-      - name: Strip binary
-        run: strip target/x86_64-unknown-linux-gnu/release/rhinco-tv
-
-      - name: Package binary
-        run: install -m 755 target/x86_64-unknown-linux-gnu/release/rhinco-tv rhinco-tv-x86_64-unknown-linux-gnu
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: rhinco-tv-x86_64-unknown-linux-gnu
-          path: rhinco-tv-x86_64-unknown-linux-gnu
-          retention-days: 1
-
-  build-arm64:
-    needs: [ check ]
-    runs-on: ubuntu-24.04-arm
-    name: Build aarch64-unknown-linux-gnu
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libudev-dev libasound2-dev pkg-config libwayland-dev libxkbcommon-dev libfontconfig1-dev
-
-      - name: Build release
-        env:
-          STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
-        run: cargo build --release --target aarch64-unknown-linux-gnu
-
-      - name: Strip binary
-        run: strip target/aarch64-unknown-linux-gnu/release/rhinco-tv
-
-      - name: Package binary
-        run: install -m 755 target/aarch64-unknown-linux-gnu/release/rhinco-tv rhinco-tv-aarch64-unknown-linux-gnu
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: rhinco-tv-aarch64-unknown-linux-gnu
-          path: rhinco-tv-aarch64-unknown-linux-gnu
-          retention-days: 1
-
   release:
-    needs: [ check, build-x64, build-arm64 ]
+    needs: [ check ]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: Semantic Release
@@ -166,34 +93,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libudev-dev libasound2-dev pkg-config
 
-      - name: Download x64 artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: rhinco-tv-x86_64-unknown-linux-gnu
-          path: ./release-artifacts/x86_64-unknown-linux-gnu
-
-      - name: Download ARM64 artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: rhinco-tv-aarch64-unknown-linux-gnu
-          path: ./release-artifacts/aarch64-unknown-linux-gnu
-
-      - name: Prepare release artifacts
-        run: |
-          # Move and rename artifacts to the expected location for semantic-release
-          mv ./release-artifacts/x86_64-unknown-linux-gnu/rhinco-tv-x86_64-unknown-linux-gnu ./release-artifacts/rhinco-tv-x86_64-unknown-linux-gnu
-          mv ./release-artifacts/aarch64-unknown-linux-gnu/rhinco-tv-aarch64-unknown-linux-gnu ./release-artifacts/rhinco-tv-aarch64-unknown-linux-gnu
-          
-          # Clean up empty directories
-          rmdir ./release-artifacts/x86_64-unknown-linux-gnu ./release-artifacts/aarch64-unknown-linux-gnu
-          
-          echo "Artifacts ready for release:"
-          ls -lh ./release-artifacts/
-
       - name: Install semantic-release
         run: npm install -g semantic-release @semantic-release/changelog @semantic-release/commit-analyzer @semantic-release/exec @semantic-release/git @semantic-release/github @semantic-release/release-notes-generator
 
       - name: Release with Semantic Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: semantic-release
