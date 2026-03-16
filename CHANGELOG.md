@@ -1,3 +1,10 @@
+## [2.11.2](https://github.com/RouHim/rhinco-tv/compare/v2.11.1...v2.11.2) (2026-03-16)
+
+
+### Bug Fixes
+
+* **ci:** build release binaries after version bump to fix update loop ([e888c92](https://github.com/RouHim/rhinco-tv/commit/e888c92d58768c37d247cd1e32d03cfe24c8b11b))
+
 ## [2.11.1](https://github.com/RouHim/rhinco-tv/compare/v2.11.0...v2.11.1) (2026-02-26)
 
 
