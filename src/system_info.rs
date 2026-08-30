@@ -483,11 +483,11 @@ fn get_zram_info() -> ZramInfo {
         }
     }
 
-    let usage_percent = if total_kb > 0 {
-        format!("{}%", (used_kb * 100) / total_kb)
-    } else {
-        "0%".to_string()
-    };
+    let usage_percent = used_kb
+        .checked_mul(100)
+        .and_then(|v| v.checked_div(total_kb))
+        .map(|p| format!("{}%", p))
+        .unwrap_or_else(|| "0%".to_string());
 
     ZramInfo {
         enabled: true,

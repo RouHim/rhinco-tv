@@ -38,7 +38,7 @@ pub fn scan_desktop_apps() -> Vec<DesktopApp> {
     }
 
     // Sort by name
-    apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    apps.sort_by_key(|a| a.name.to_lowercase());
 
     // Deduplicate by name (keep first occurrence, which is user-level)
     apps.dedup_by(|a, b| a.name == b.name);

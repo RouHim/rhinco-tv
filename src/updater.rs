@@ -9,7 +9,7 @@ pub struct ReleaseInfo {
 }
 
 pub fn check_update_available() -> Result<Option<ReleaseInfo>, String> {
-    let updater = build_updater()?;
+    let updater = build_updater(None)?;
     let current_version_str = cargo_crate_version!();
     let current_version = Version::parse(current_version_str).map_err(|e| {
         format!(
@@ -39,24 +39,34 @@ pub fn check_update_available() -> Result<Option<ReleaseInfo>, String> {
         body: release.body.unwrap_or_default(),
     }))
 }
-
-pub fn apply_update() -> Result<(), String> {
-    let updater = build_updater()?;
+pub fn apply_update_to_version(target_version: &str) -> Result<(), String> {
+    // Ensure tag has 'v' prefix as GitHub tags are versioned like "v2.11.2"
+    let tag = if target_version.starts_with('v') {
+        target_version.to_string()
+    } else {
+        format!("v{}", target_version)
+    };
+    let updater = build_updater(Some(tag))?;
     updater
         .update()
         .map_err(|e| format!("Update failed: {}", e))?;
     Ok(())
 }
 
-fn build_updater() -> Result<Box<dyn ReleaseUpdate>, String> {
-    self_update::backends::github::Update::configure()
+fn build_updater(target_version: Option<String>) -> Result<Box<dyn ReleaseUpdate>, String> {
+    let mut builder = self_update::backends::github::Update::configure();
+    builder
         .repo_owner("RouHim")
         .repo_name("rhinco-tv")
         .bin_name("rhinco-tv")
         .show_download_progress(false)
         .show_output(false)
         .no_confirm(true)
-        .current_version(cargo_crate_version!())
+        .current_version(cargo_crate_version!());
+    if let Some(ver) = target_version {
+        builder.target_version_tag(&ver);
+    }
+    builder
         .build()
         .map_err(|e| format!("Failed to configure updater: {}", e))
 }

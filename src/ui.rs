@@ -12,7 +12,7 @@ use crate::ui_theme::{
     GAME_POSTER_HEIGHT, GAME_POSTER_WIDTH, ITEM_SPACING, MAIN_CONTENT_VERTICAL_PADDING,
     MAX_UI_SCALE, MIN_UI_SCALE, REFERENCE_WINDOW_HEIGHT, RESTART_DELAY_SECS,
 };
-use crate::updater::{apply_update, check_update_available, ReleaseInfo};
+use crate::updater::{apply_update_to_version, check_update_available, ReleaseInfo};
 use iced::window;
 use iced::{
     widget::{Column, Container, Scrollable, Stack},
@@ -1278,14 +1278,19 @@ impl Launcher {
     }
 
     fn start_app_update(&mut self) -> Task<Message> {
+        let target_version = match &self.modal {
+            ModalState::AppUpdate(state) => state.release.version.clone(),
+            _ => return Task::none(),
+        };
+
         if let ModalState::AppUpdate(state) = &mut self.modal {
             state.phase = AppUpdatePhase::Updating;
             state.status_message = None;
         }
 
         Task::perform(
-            async {
-                tokio::task::spawn_blocking(apply_update)
+            async move {
+                tokio::task::spawn_blocking(move || apply_update_to_version(&target_version))
                     .await
                     .map_err(|e| format!("Task join error: {}", e))
                     .and_then(|r| r)
@@ -2485,11 +2490,12 @@ impl Launcher {
                     _ => {}
                 },
                 // Running states -> Cancel if allowed
-                status if status.is_running() => {
-                    if !matches!(status, UpdateStatus::Installing { .. }) && action == Action::Back
-                    {
-                        return self.update(Message::CancelSystemUpdate);
-                    }
+                status
+                    if status.is_running()
+                        && !matches!(status, UpdateStatus::Installing { .. })
+                        && action == Action::Back =>
+                {
+                    return self.update(Message::CancelSystemUpdate);
                 }
                 _ => {}
             }
