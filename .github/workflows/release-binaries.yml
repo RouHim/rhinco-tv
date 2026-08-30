@@ -3,6 +3,9 @@ name: Release Binaries
 on:
   release:
     types: [published]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -16,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || github.ref }}
           fetch-depth: 0
 
       - name: Install rust toolchain
@@ -41,7 +44,7 @@ jobs:
       - name: Upload to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.event.release.tag_name }} rhinco-tv-x86_64-unknown-linux-gnu --clobber
+        run: gh release upload ${{ github.event.release.tag_name || github.ref_name }} rhinco-tv-x86_64-unknown-linux-gnu --clobber
 
   build-arm64:
     runs-on: ubuntu-24.04-arm
@@ -51,7 +54,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || github.ref }}
           fetch-depth: 0
 
       - name: Install rust toolchain
@@ -76,4 +79,4 @@ jobs:
       - name: Upload to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload ${{ github.event.release.tag_name }} rhinco-tv-aarch64-unknown-linux-gnu --clobber
+        run: gh release upload ${{ github.event.release.tag_name || github.ref_name }} rhinco-tv-aarch64-unknown-linux-gnu --clobber

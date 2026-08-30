@@ -71,6 +71,11 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     name: Semantic Release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
 
     steps:
       - name: Checkout code
