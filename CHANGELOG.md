@@ -1,3 +1,10 @@
+## [2.11.4](https://github.com/RouHim/rhinco-tv/compare/v2.11.3...v2.11.4) (2026-08-30)
+
+
+### Bug Fixes
+
+* **ci:** repair release workflow triggers and permissions to fix update loop ([9c552de](https://github.com/RouHim/rhinco-tv/commit/9c552de59c3df438adab2692904ee3ec513708da))
+
 ## [2.11.3](https://github.com/RouHim/rhinco-tv/compare/v2.11.2...v2.11.3) (2026-08-30)
 
 
