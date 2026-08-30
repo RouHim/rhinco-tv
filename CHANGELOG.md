@@ -1,3 +1,10 @@
+## [2.11.3](https://github.com/RouHim/rhinco-tv/compare/v2.11.2...v2.11.3) (2026-08-30)
+
+
+### Bug Fixes
+
+* **updater:** ensure update targets displayed version to prevent loop ([20621fb](https://github.com/RouHim/rhinco-tv/commit/20621fb48b08150c4cbe3aa1780531dc31d3d5da))
+
 ## [2.11.2](https://github.com/RouHim/rhinco-tv/compare/v2.11.1...v2.11.2) (2026-03-16)
 
 
