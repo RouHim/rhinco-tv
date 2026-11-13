@@ -1,3 +1,10 @@
+## [2.11.5](https://github.com/RouHim/rhinco-tv/compare/v2.11.4...v2.11.5) (2026-11-13)
+
+
+### Bug Fixes
+
+* **clippy:** collapse needless bool in keyboard classification ([27a7d12](https://github.com/RouHim/rhinco-tv/commit/27a7d12f280a113a041b635e27b64efc2caa99fb))
+
 ## [2.11.4](https://github.com/RouHim/rhinco-tv/compare/v2.11.3...v2.11.4) (2026-08-30)
 
 
