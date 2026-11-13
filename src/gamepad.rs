@@ -257,14 +257,9 @@ fn classify_as_keyboard(caps: &GamepadCapabilities) -> bool {
     // Or maybe we trust the capability check more.
     // For now, let's keep the name check as a secondary filter for "Driver" mapped devices.
     let lower_name = caps.name.to_lowercase();
-    if lower_name.contains("keyboard")
+    lower_name.contains("keyboard")
         || lower_name.contains("system control")
         || lower_name.contains("consumer control")
-    {
-        return true;
-    }
-
-    false
 }
 
 fn map_axis_value(value: f32) -> i8 {
